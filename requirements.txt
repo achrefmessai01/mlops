@@ -1,0 +1,30 @@
+# Core FastAPI dependencies
+fastapi
+uvicorn[standard]
+gunicorn
+
+# MLOps and monitoring
+langfuse
+prometheus-client
+
+# Core utilities
+python-dotenv
+requests
+pydantic
+pandas
+numpy
+scikit-learn
+
+# Dashboard and templating
+jinja2
+aiofiles
+
+# Background tasks
+schedule
+
+# Optional: Advanced ML (uncomment if needed)
+# transformers
+# torch
+
+# PostgreSQL support
+psycopg2-binary

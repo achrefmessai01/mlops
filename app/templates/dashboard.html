@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLOps Monitoring Dashboard</title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .alert-high { @apply bg-red-100 border-red-500 text-red-700; }
+        .alert-medium { @apply bg-yellow-100 border-yellow-500 text-yellow-700; }
+        .alert-low { @apply bg-green-100 border-green-500 text-green-700; }
+        .metric-card { @apply bg-white rounded-lg shadow-md p-6 border-l-4; }
+        .metric-card.security { @apply border-red-500; }
+        .metric-card.performance { @apply border-blue-500; }
+        .metric-card.usage { @apply border-green-500; }
+        .metric-card.anomaly { @apply border-yellow-500; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center">
+                    <i class="fas fa-chart-line text-2xl text-blue-600 mr-3"></i>
+                    <h1 class="text-xl font-semibold text-gray-900">MLOps Monitoring Dashboard</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div id="last-update" class="text-sm text-gray-500"></div>
+                    <button onclick="refreshData()" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                        <i class="fas fa-sync-alt mr-2"></i>Actualiser
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <!-- Alertes -->
+        <div id="alerts-section" class="mb-6">
+            <h2 class="text-lg font-medium text-gray-900 mb-4">
+                <i class="fas fa-exclamation-triangle mr-2"></i>Alertes Actives
+            </h2>
+            <div id="alerts-container" class="space-y-2">
+                <!-- Les alertes seront chargées ici -->
+            </div>
+        </div>
+
+        <!-- Métriques Principales -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            <div class="metric-card security">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-shield-alt text-red-500 text-2xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Menaces Détectées</p>
+                        <p id="threats-count" class="text-2xl font-semibold text-gray-900">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metric-card performance">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-tachometer-alt text-blue-500 text-2xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Latence Moyenne</p>
+                        <p id="avg-latency" class="text-2xl font-semibold text-gray-900">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metric-card usage">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-chart-bar text-green-500 text-2xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Requêtes (7j)</p>
+                        <p id="total-requests" class="text-2xl font-semibold text-gray-900">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metric-card anomaly">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-exclamation-circle text-yellow-500 text-2xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Anomalies</p>
+                        <p id="anomalies-count" class="text-2xl font-semibold text-gray-900">-</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Graphiques et Données -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Sécurité -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">
+                    <i class="fas fa-shield-alt mr-2 text-red-500"></i>Analyse de Sécurité
+                </h3>
+                <div class="chart-container" style="position: relative; height: 200px; width: 100%;">
+                    <canvas id="security-chart"></canvas>
+                </div>
+                <div id="security-details" class="mt-4 text-sm text-gray-600">
+                    <!-- Détails de sécurité -->
+                </div>
+            </div>
+
+            <!-- Performance -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">
+                    <i class="fas fa-chart-line mr-2 text-blue-500"></i>Performance
+                </h3>
+                <div class="chart-container" style="position: relative; height: 200px; width: 100%;">
+                    <canvas id="performance-chart"></canvas>
+                </div>
+                <div id="performance-details" class="mt-4 text-sm text-gray-600">
+                    <!-- Détails de performance -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Recommandations IA -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">
+                <i class="fas fa-robot mr-2 text-purple-500"></i>Recommandations IA
+            </h3>
+            <div id="recommendations-loading" class="text-center py-4">
+                <i class="fas fa-spinner fa-spin text-2xl text-gray-400"></i>
+                <p class="text-gray-500 mt-2">Génération des recommandations...</p>
+            </div>
+            <div id="recommendations-content" class="hidden">
+                <div id="summary" class="mb-4 p-4 bg-gray-50 rounded-lg"></div>
+                <div id="recommendations-list" class="space-y-4"></div>
+            </div>
+        </div>
+
+        <!-- Analyseur de Prompt -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">
+                <i class="fas fa-search mr-2 text-indigo-500"></i>Analyseur de Prompt de Sécurité
+            </h3>
+            <div class="space-y-4">
+                <div>
+                    <label for="prompt-input" class="block text-sm font-medium text-gray-700">
+                        Analysez un prompt pour détecter les menaces de sécurité:
+                    </label>
+                    <textarea id="prompt-input" rows="4" 
+                              class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Entrez votre prompt ici..."></textarea>
+                </div>
+                <button onclick="analyzePrompt()" 
+                        class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">
+                    <i class="fas fa-analyze mr-2"></i>Analyser
+                </button>
+                <div id="prompt-analysis-result" class="hidden mt-4"></div>
+            </div>
+        </div>
+
+        <!-- Rapport Quotidien -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-medium text-gray-900">
+                    <i class="fas fa-file-alt mr-2 text-green-500"></i>Rapport Quotidien
+                </h3>
+                <button onclick="generateDailyReport()" 
+                        class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
+                    <i class="fas fa-file-download mr-2"></i>Générer
+                </button>
+            </div>
+            <div id="daily-report-content" class="prose max-w-none">
+                <p class="text-gray-500">Cliquez sur "Générer" pour créer le rapport quotidien.</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Variables globales pour la gestion des graphiques
+        let securityChart = null;
+        let performanceChart = null;
+        let refreshInterval = null;
+        let isInitialized = false;
+        
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Dashboard initializing...');
+            initializeCharts();
+            loadDashboardData();
+            
+            // Actualisation automatique toutes les 30 secondes
+            refreshInterval = setInterval(function() {
+                console.log('Auto-refresh triggered');
+                loadDashboardData();
+            }, 30000);
+        });
+
+        // Fonction pour détruire proprement un graphique
+        function destroyChart(chart) {
+            if (chart && typeof chart.destroy === 'function') {
+                try {
+                    chart.destroy();
+                    return null;
+                } catch (error) {
+                    console.error('Error destroying chart:', error);
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        // Initialiser les graphiques
+        function initializeCharts() {
+            console.log('Initializing charts...');
+            
+            // Détruire les graphiques existants
+            securityChart = destroyChart(securityChart);
+            performanceChart = destroyChart(performanceChart);
+
+            try {
+                // Vérifier que les éléments canvas existent
+                const securityCanvas = document.getElementById('security-chart');
+                const performanceCanvas = document.getElementById('performance-chart');
+                
+                if (!securityCanvas || !performanceCanvas) {
+                    console.error('Canvas elements not found');
+                    return;
+                }
+
+                // Configuration commune pour éviter les problèmes de redimensionnement
+                const commonOptions = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false, // Désactiver les animations pour éviter les conflits
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                };
+
+                // Graphique de sécurité
+                const securityCtx = securityCanvas.getContext('2d');
+                securityChart = new Chart(securityCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Injection de Prompt', 'Jailbreak', 'Extraction de Données', 'Injection de Code', 'Mots-clés Suspects'],
+                        datasets: [{
+                            data: [0, 0, 0, 0, 0],
+                            backgroundColor: [
+                                '#EF4444', '#F97316', '#EAB308', '#8B5CF6', '#6B7280'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        cutout: '50%'
+                    }
+                });
+
+                // Graphique de performance
+                const performanceCtx = performanceCanvas.getContext('2d');
+                performanceChart = new Chart(performanceCtx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Latence (s)',
+                            data: [],
+                            borderColor: '#3B82F6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.1,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Latence (secondes)'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Modèles'
+                                }
+                            }
+                        }
+                    }
+                });
+
+                isInitialized = true;
+                console.log('Charts initialized successfully');
+                
+            } catch (error) {
+                console.error('Error initializing charts:', error);
+                isInitialized = false;
+            }
+        }
+
+        // Charger les données du dashboard
+        async function loadDashboardData() {
+            console.log('Loading dashboard data...');
+            
+            try {
+                // Vérifier que les graphiques sont initialisés
+                if (!isInitialized) {
+                    console.log('Charts not initialized, initializing now...');
+                    initializeCharts();
+                    // Attendre un peu que l'initialisation se termine
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                // Charger les métriques principales avec timeout
+                const overviewPromise = fetch('/api/dashboard/overview', { 
+                    signal: AbortSignal.timeout(5000) 
+                }).then(r => r.json()).catch(e => {
+                    console.warn('Failed to load overview:', e);
+                    return { security: { total_threats: 0 }, usage: { avg_latency: 0, total_requests: 0 }, anomalies: { count: 0 } };
+                });
+
+                // Charger les alertes avec timeout
+                const alertsPromise = fetch('/api/dashboard/alerts', { 
+                    signal: AbortSignal.timeout(5000) 
+                }).then(r => r.json()).catch(e => {
+                    console.warn('Failed to load alerts:', e);
+                    return { count: 0, alerts: [] };
+                });
+
+                // Charger les données de sécurité avec timeout
+                const securityPromise = fetch('/api/dashboard/security', { 
+                    signal: AbortSignal.timeout(5000) 
+                }).then(r => r.json()).catch(e => {
+                    console.warn('Failed to load security data:', e);
+                    return { threat_breakdown: {} };
+                });
+
+                // Charger les données de performance avec timeout
+                const performancePromise = fetch('/api/dashboard/performance', { 
+                    signal: AbortSignal.timeout(5000) 
+                }).then(r => r.json()).catch(e => {
+                    console.warn('Failed to load performance data:', e);
+                    return { model_performance: {} };
+                });
+
+                // Attendre toutes les requêtes
+                const [overview, alerts, securityData, performanceData] = await Promise.all([
+                    overviewPromise, alertsPromise, securityPromise, performancePromise
+                ]);
+
+                // Mettre à jour l'interface uniquement si tout s'est bien passé
+                updateOverviewMetrics(overview);
+                updateAlerts(alerts);
+                updateSecurityChart(securityData);
+                updatePerformanceData(performanceData);
+
+                // Mettre à jour l'heure de dernière actualisation
+                document.getElementById('last-update').textContent = 
+                    'Dernière mise à jour: ' + new Date().toLocaleTimeString();
+
+                console.log('Dashboard data loaded successfully');
+
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+                showError('Erreur de chargement des données: ' + error.message);
+            }
+        }
+
+        // Mettre à jour les métriques principales
+        function updateOverviewMetrics(data) {
+            try {
+                const threatsCount = (data && data.security && data.security.total_threats) || 0;
+                const avgLatency = (data && data.usage && data.usage.avg_latency) || 0;
+                const totalRequests = (data && data.usage && data.usage.total_requests) || 0;
+                const anomaliesCount = (data && data.anomalies && data.anomalies.count) || 0;
+
+                document.getElementById('threats-count').textContent = threatsCount;
+                document.getElementById('avg-latency').textContent = avgLatency.toFixed(2) + 's';
+                document.getElementById('total-requests').textContent = totalRequests.toLocaleString();
+                document.getElementById('anomalies-count').textContent = anomaliesCount;
+                
+                console.log('Overview metrics updated:', { threatsCount, avgLatency, totalRequests, anomaliesCount });
+            } catch (error) {
+                console.error('Error updating overview metrics:', error);
+            }
+        }
+
+        // Mettre à jour les alertes
+        function updateAlerts(alertsData) {
+            const container = document.getElementById('alerts-container');
+            
+            if (alertsData.count === 0) {
+                container.innerHTML = '<div class="alert-low border-l-4 p-4 rounded">Aucune alerte active</div>';
+                return;
+            }
+
+            container.innerHTML = alertsData.alerts.map(alert => {
+                const levelClass = alert.level === 'critical' ? 'alert-high' : 'alert-medium';
+                const icon = alert.level === 'critical' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+                
+                return `
+                    <div class="${levelClass} border-l-4 p-4 rounded">
+                        <div class="flex items-center">
+                            <i class="fas ${icon} mr-3"></i>
+                            <div>
+                                <p class="font-medium">${alert.message}</p>
+                                <p class="text-sm opacity-75">${new Date(alert.timestamp).toLocaleString()}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Mettre à jour le graphique de sécurité
+        function updateSecurityChart(data) {
+            if (!isInitialized || !securityChart) {
+                console.warn('Security chart not initialized, skipping update');
+                return;
+            }
+
+            try {
+                if (data && data.threat_breakdown) {
+                    const breakdown = data.threat_breakdown;
+                    const newData = [
+                        breakdown.prompt_injection || 0,
+                        breakdown.jailbreak || 0,
+                        breakdown.data_extraction || 0,
+                        breakdown.code_injection || 0,
+                        breakdown.suspicious_keywords || 0
+                    ];
+                    
+                    // Mettre à jour les données sans animation
+                    securityChart.data.datasets[0].data = newData;
+                    securityChart.update('none');
+
+                    // Mettre à jour les détails
+                    const detailsHtml = Object.entries(breakdown)
+                        .map(([key, value]) => `<div class="flex justify-between"><span>${key.replace('_', ' ')}:</span><strong>${value}</strong></div>`)
+                        .join('');
+                    document.getElementById('security-details').innerHTML = detailsHtml;
+                    
+                    console.log('Security chart updated successfully');
+                } else {
+                    console.warn('No security data available');
+                }
+            } catch (error) {
+                console.error('Error updating security chart:', error);
+            }
+        }
+
+        // Mettre à jour les données de performance
+        function updatePerformanceData(data) {
+            if (!isInitialized || !performanceChart) {
+                console.warn('Performance chart not initialized, skipping update');
+                return;
+            }
+
+            try {
+                if (data && data.model_performance && Object.keys(data.model_performance).length > 0) {
+                    const models = Object.keys(data.model_performance);
+                    const latencies = models.map(model => data.model_performance[model].avg_latency || 0);
+                    
+                    // Mettre à jour les données sans animation
+                    performanceChart.data.labels = models;
+                    performanceChart.data.datasets[0].data = latencies;
+                    performanceChart.update('none');
+
+                    // Mettre à jour les détails
+                    const detailsHtml = models.map(model => {
+                        const perf = data.model_performance[model];
+                        return `
+                            <div class="flex justify-between">
+                                <span>${model}:</span>
+                                <span><strong>${(perf.avg_latency || 0).toFixed(2)}s</strong> (${perf.request_count || 0} req)</span>
+                            </div>
+                        `;
+                    }).join('');
+                    document.getElementById('performance-details').innerHTML = detailsHtml;
+                    
+                    console.log('Performance chart updated successfully');
+                } else {
+                    console.warn('No performance data available');
+                    // Afficher un message si pas de données
+                    document.getElementById('performance-details').innerHTML = '<div class="text-gray-500">Aucune donnée de performance disponible</div>';
+                }
+            } catch (error) {
+                console.error('Error updating performance chart:', error);
+            }
+        }
+
+        // Charger les recommandations
+        async function loadRecommendations() {
+            try {
+                const data = await fetch('/api/dashboard/recommendations').then(r => r.json());
+                
+                document.getElementById('recommendations-loading').classList.add('hidden');
+                document.getElementById('recommendations-content').classList.remove('hidden');
+
+                // Afficher le résumé
+                document.getElementById('summary').innerHTML = `
+                    <h4 class="font-semibold mb-2">Résumé Exécutif</h4>
+                    <p>${data.summary}</p>
+                `;
+
+                // Afficher les recommandations
+                const recommendationsHtml = data.recommendations.map(rec => {
+                    const priorityColor = rec.priority === 'HIGH' ? 'red' : rec.priority === 'MEDIUM' ? 'yellow' : 'green';
+                    return `
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <div class="flex items-start justify-between">
+                                <div class="flex-1">
+                                    <div class="flex items-center mb-2">
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-${priorityColor}-100 text-${priorityColor}-800 mr-2">
+                                            ${rec.priority}
+                                        </span>
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                                            ${rec.category}
+                                        </span>
+                                    </div>
+                                    <h5 class="font-semibold text-gray-900 mb-2">${rec.title}</h5>
+                                    <p class="text-gray-600 mb-3">${rec.description}</p>
+                                    <div class="mb-3">
+                                        <h6 class="font-medium text-gray-900 mb-1">Actions recommandées:</h6>
+                                        <ul class="list-disc list-inside text-sm text-gray-600">
+                                            ${rec.action_items.map(item => `<li>${item}</li>`).join('')}
+                                        </ul>
+                                    </div>
+                                    <div class="flex justify-between text-sm text-gray-500">
+                                        <span><strong>Impact:</strong> ${rec.impact}</span>
+                                        <span><strong>Délai:</strong> ${rec.timeline}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                document.getElementById('recommendations-list').innerHTML = recommendationsHtml;
+
+            } catch (error) {
+                console.error('Erreur lors du chargement des recommandations:', error);
+                document.getElementById('recommendations-loading').innerHTML = 
+                    '<p class="text-red-500">Erreur lors du chargement des recommandations</p>';
+            }
+        }
+
+        // Analyser un prompt
+        async function analyzePrompt() {
+            const prompt = document.getElementById('prompt-input').value.trim();
+            if (!prompt) {
+                alert('Veuillez entrer un prompt à analyser');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/dashboard/analyze-prompt', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ prompt: prompt })
+                });
+
+                const analysis = await response.json();
+                displayPromptAnalysis(analysis);
+
+            } catch (error) {
+                console.error('Erreur lors de l\'analyse du prompt:', error);
+                showError('Erreur lors de l\'analyse du prompt');
+            }
+        }
+
+        // Afficher les résultats d'analyse de prompt
+        function displayPromptAnalysis(analysis) {
+            const resultDiv = document.getElementById('prompt-analysis-result');
+            
+            const riskColor = analysis.risk_level === 'CRITICAL' ? 'red' : 
+                             analysis.risk_level === 'HIGH' ? 'orange' : 
+                             analysis.risk_level === 'MEDIUM' ? 'yellow' : 'green';
+
+            const html = `
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="flex items-center mb-3">
+                        <span class="px-3 py-1 text-sm font-semibold rounded-full bg-${riskColor}-100 text-${riskColor}-800">
+                            Risque: ${analysis.risk_level}
+                        </span>
+                        <span class="ml-3 text-sm text-gray-600">Score: ${analysis.risk_score}</span>
+                    </div>
+                    
+                    ${analysis.threats_detected.length > 0 ? `
+                        <div class="mb-3">
+                            <h5 class="font-medium text-gray-900 mb-2">Menaces détectées:</h5>
+                            <ul class="list-disc list-inside text-sm text-red-600">
+                                ${analysis.threats_detected.map(threat => `<li>${threat}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : '<p class="text-green-600 text-sm">Aucune menace détectée</p>'}
+                    
+                    ${Object.keys(analysis.details).length > 0 ? `
+                        <div class="mt-3 p-3 bg-gray-50 rounded text-sm">
+                            <h6 class="font-medium mb-2">Détails:</h6>
+                            ${Object.entries(analysis.details).map(([key, value]) => 
+                                `<div><strong>${key}:</strong> ${Array.isArray(value) ? value.join(', ') : value}</div>`
+                            ).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            resultDiv.innerHTML = html;
+            resultDiv.classList.remove('hidden');
+        }
+
+        // Générer le rapport quotidien
+        async function generateDailyReport() {
+            try {
+                const response = await fetch('/api/dashboard/daily-report');
+                const data = await response.json();
+                
+                const reportHtml = `
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                        <h4 class="font-semibold text-blue-900 mb-2">Rapport généré le ${new Date(data.generated_at).toLocaleString()}</h4>
+                        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                            <div><strong>Menaces:</strong> ${data.data_summary.total_threats}</div>
+                            <div><strong>Requêtes:</strong> ${data.data_summary.total_requests}</div>
+                            <div><strong>Anomalies:</strong> ${data.data_summary.anomalies_count}</div>
+                            <div><strong>Prompts:</strong> ${data.data_summary.prompts_analyzed}</div>
+                        </div>
+                    </div>
+                    <div class="whitespace-pre-wrap">${data.report}</div>
+                `;
+                
+                document.getElementById('daily-report-content').innerHTML = reportHtml;
+
+            } catch (error) {
+                console.error('Erreur lors de la génération du rapport:', error);
+                showError('Erreur lors de la génération du rapport');
+            }
+        }
+
+        // Actualiser toutes les données
+        function refreshData() {
+            console.log('Manual refresh triggered');
+            
+            // Arrêter l'actualisation automatique temporairement
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                refreshInterval = null;
+            }
+            
+            // Vérifier l'état des graphiques avant de charger les données
+            if (!isInitialized) {
+                console.log('Charts not initialized, reinitializing...');
+                initializeCharts();
+            }
+            
+            loadDashboardData();
+            loadRecommendations();
+            
+            // Redémarrer l'actualisation automatique après un délai
+            setTimeout(() => {
+                refreshInterval = setInterval(function() {
+                    console.log('Auto-refresh triggered');
+                    loadDashboardData();
+                }, 30000);
+            }, 1000);
+        }
+
+        // Fonction pour gérer la visibilité de la page (éviter les mises à jour inutiles)
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                // Page cachée, arrêter les mises à jour
+                if (refreshInterval) {
+                    clearInterval(refreshInterval);
+                    refreshInterval = null;
+                }
+            } else {
+                // Page visible, reprendre les mises à jour
+                loadDashboardData();
+                if (!refreshInterval) {
+                    refreshInterval = setInterval(function() {
+                        loadDashboardData();
+                    }, 30000);
+                }
+            }
+        });
+
+        // Afficher une erreur
+        function showError(message) {
+            const alertHtml = `
+                <div class="alert-high border-l-4 p-4 rounded mb-4">
+                    <div class="flex items-center">
+                        <i class="fas fa-exclamation-triangle mr-3"></i>
+                        <p class="font-medium">${message}</p>
+                    </div>
+                </div>
+            `;
+            document.getElementById('alerts-container').insertAdjacentHTML('afterbegin', alertHtml);
+        }
+
+        // Charger les recommandations au démarrage
+        setTimeout(loadRecommendations, 1000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,129 @@
+version: '3.8'
+
+services:
+  # Application MLOps
+  mlops-app:
+    build: 
+      context: .
+      dockerfile: app/Dockerfile
+    container_name: mlops-app
+    ports:
+      - "8000:8000"
+    environment:
+      # Configuration des modèles IA
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      
+      # Configuration Langfuse
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:-sk-lf-e755e804-4673-4e91-a9f5-d6e4f7ba215f}
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-pk-lf-3b69033c-474f-450d-b7c0-73627641ed5a}
+      - LANGFUSE_HOST=${LANGFUSE_HOST:-https://cloud.langfuse.com}
+      
+      # Configuration PostgreSQL
+      - POSTGRES_DB=mlops
+      - POSTGRES_USER=mlops
+      - POSTGRES_PASSWORD=mlops123
+      - POSTGRES_HOST=mlops-postgres
+      - POSTGRES_PORT=5432
+      
+      # Configuration de base
+      - PYTHONPATH=/app
+      - LOG_LEVEL=INFO
+      
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./exports:/app/exports
+      - ./app/model_api_keys.env:/app/model_api_keys.env:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - redis
+      - postgres
+      
+  # Redis pour le cache
+  redis:
+    image: redis:7-alpine
+    container_name: mlops-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  # PostgreSQL pour les données
+  postgres:
+    image: postgres:15-alpine
+    container_name: mlops-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=mlops
+      - POSTGRES_USER=mlops
+      - POSTGRES_PASSWORD=mlops123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./monitoring/postgres:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+
+  # Prometheus pour les métriques
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mlops-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    depends_on:
+      - mlops-app
+
+  # Grafana pour les dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mlops-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana:/etc/grafana/provisioning
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: mlops-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./monitoring/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    restart: unless-stopped
+    depends_on:
+      - mlops-app
+      - grafana
+
+volumes:
+  redis_data:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
