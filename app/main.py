@@ -36,29 +36,28 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "model_api_keys.env"))
 # Configure logging
 logging.basicConfig(level=logging.INFO, filename='logs/inference.log', filemode='a', format='%(asctime)s %(message)s')
 
-# Langfuse setup using environment variables
+# Langfuse setup using LOCAL environment variables
 langfuse = Langfuse(
-    secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
-    public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
-    host=os.getenv("LANGFUSE_HOST")
+    secret_key=os.getenv("LANGFUSE_SECRET_KEY", "sk-lf-local-secret-key"),
+    public_key=os.getenv("LANGFUSE_PUBLIC_KEY", "pk-lf-local-public-key"),
+    host=os.getenv("LANGFUSE_HOST", "http://localhost:3001")
 )
 
-# OpenRouter API key (single key for all models)
-OPENROUTER_API_KEY = "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"
-
-# Gemini API key
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# API Keys
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 MODEL_NAMES = {
     "qwendeepseek": "deepseek/deepseek-r1-0528-qwen3-8b:free",
     "gemma3n": "google/gemma-3n-e4b-it:free",  
     "llama4": "meta-llama/llama-4-maverick:free",
     "mistral": "mistralai/mistral-small-3.2-24b-instruct:free",
-    "gemini": "gemini-2.0-flash"  # Direct Gemini API
+    "gpt4": "gpt-4o-mini",  # OpenAI direct
+    "gpt35": "gpt-3.5-turbo"  # OpenAI direct
 }
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 
 class MessageContent(BaseModel):
     type: str  # 'text' or 'image_url'
@@ -70,13 +69,12 @@ class Message(BaseModel):
     content: List[MessageContent]
 
 class InferenceRequest(BaseModel):
-    model_name: str  # 'qwen', 'gemma', or 'llama4'
+    model_name: str
     messages: List[Message] = Field(..., description="List of chat messages, each with content (text and/or image_url)")
 
 class InferenceResponse(BaseModel):
     result: str
     latency: float
-
 
 # Prometheus metrics
 INFERENCES_TOTAL = Counter(
@@ -103,11 +101,13 @@ def call_openrouter_api(model, messages, api_key=None, referer=None, title=None)
         headers["HTTP-Referer"] = referer
     if title:
         headers["X-Title"] = title
+    
     # Detect if any message contains an image
     multimodal = any(
         any(part.type == "image_url" for part in msg.content)
         for msg in messages
     )
+    
     openai_messages = []
     for msg in messages:
         if multimodal:
@@ -121,11 +121,14 @@ def call_openrouter_api(model, messages, api_key=None, referer=None, title=None)
             "role": msg.role,
             "content": content
         })
+    
     data = {
         "model": model,
         "messages": openai_messages
     }
+    
     logging.info(f"OpenRouter payload: {data}")
+    
     try:
         response = requests.post(
             url=OPENROUTER_URL,
@@ -146,37 +149,40 @@ def call_openrouter_api(model, messages, api_key=None, referer=None, title=None)
             error_detail = response.text
         logging.error(f"OpenRouter API error response: {error_detail}")
         raise Exception(f"{e} | OpenRouter response: {error_detail}")
-    return response.json()["choices"][0]["message"]["content"]
 
-def call_gemini_api(messages):
-    """Call Google Gemini API directly"""
-    if not GEMINI_API_KEY:
-        raise Exception("GEMINI_API_KEY not configured")
+def call_openai_api(model, messages):
+    """Call OpenAI API directly"""
+    if not OPENAI_API_KEY:
+        raise Exception("OPENAI_API_KEY not configured")
     
-    # Convert messages to Gemini format
-    contents = []
+    # Convert messages to OpenAI format
+    openai_messages = []
     for msg in messages:
-        parts = []
-        for part in msg.content:
-            if part.type == "text" and part.text:
-                parts.append({"text": part.text})
-            # Add image support later if needed
-        if parts:
-            contents.append({"parts": parts})
+        # Concatenate all text parts
+        text_parts = [part.text for part in msg.content if part.type == "text" and part.text]
+        content = "\n".join(text_parts)
+        openai_messages.append({
+            "role": msg.role,
+            "content": content
+        })
     
-    data = {"contents": contents}
+    data = {
+        "model": model,
+        "messages": openai_messages,
+        "temperature": 0.7,
+        "max_tokens": 2000
+    }
     
     headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
         "Content-Type": "application/json"
     }
     
-    url = f"{GEMINI_URL}?key={GEMINI_API_KEY}"
-    
-    logging.info(f"Gemini payload: {data}")
+    logging.info(f"OpenAI payload: {data}")
     
     try:
         response = requests.post(
-            url=url,
+            url=OPENAI_URL,
             headers=headers,
             json=data,
             timeout=60
@@ -184,22 +190,19 @@ def call_gemini_api(messages):
         response.raise_for_status()
         resp_json = response.json()
         
-        if "candidates" not in resp_json:
-            logging.error(f"Gemini API unexpected response: {resp_json}")
-            raise Exception(f"Gemini API did not return 'candidates': {resp_json}")
+        if "choices" not in resp_json:
+            logging.error(f"OpenAI API unexpected response: {resp_json}")
+            raise Exception(f"OpenAI API did not return 'choices': {resp_json}")
         
-        # Extract the text from the response
-        candidate = resp_json["candidates"][0]
-        content = candidate["content"]["parts"][0]["text"]
-        return content
+        return resp_json["choices"][0]["message"]["content"]
         
     except requests.exceptions.HTTPError as e:
         try:
             error_detail = response.json()
         except Exception:
             error_detail = response.text
-        logging.error(f"Gemini API error response: {error_detail}")
-        raise Exception(f"{e} | Gemini response: {error_detail}")
+        logging.error(f"OpenAI API error response: {error_detail}")
+        raise Exception(f"{e} | OpenAI response: {error_detail}")
 
 @app.get("/metrics")
 def metrics():
@@ -236,8 +239,9 @@ async def generate_text(request: Request, body: InferenceRequest):
     PROMPT_LENGTH.labels(endpoint, model_name, user_ip).observe(prompt_len)
 
     try:
-        if model_name == "gemini":
-            result = call_gemini_api(body.messages)
+        # Déterminer quel API utiliser
+        if model_name in ["gpt4", "gpt35"]:
+            result = call_openai_api(MODEL_NAMES[model_name], body.messages)
         else:
             result = call_openrouter_api(
                 model=MODEL_NAMES[model_name],

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Application MLOps
   mlops-app:
@@ -12,12 +10,12 @@ services:
     environment:
       # Configuration des modèles IA
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
       
-      # Configuration Langfuse
-      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:-sk-lf-e755e804-4673-4e91-a9f5-d6e4f7ba215f}
-      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-pk-lf-3b69033c-474f-450d-b7c0-73627641ed5a}
-      - LANGFUSE_HOST=${LANGFUSE_HOST:-https://cloud.langfuse.com}
+      # Configuration Langfuse LOCAL
+      - LANGFUSE_SECRET_KEY=sk-lf-local-secret-key
+      - LANGFUSE_PUBLIC_KEY=pk-lf-local-public-key
+      - LANGFUSE_HOST=http://langfuse:3000
       
       # Configuration PostgreSQL
       - POSTGRES_DB=mlops
@@ -45,6 +43,7 @@ services:
     depends_on:
       - redis
       - postgres
+      - langfuse
       
   # Redis pour le cache
   redis:
@@ -56,7 +55,7 @@ services:
       - redis_data:/data
     restart: unless-stopped
 
-  # PostgreSQL pour les données
+  # PostgreSQL pour les données MLOps
   postgres:
     image: postgres:15-alpine
     container_name: mlops-postgres
@@ -70,6 +69,87 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./monitoring/postgres:/docker-entrypoint-initdb.d
     restart: unless-stopped
+
+  # PostgreSQL pour Langfuse
+  langfuse-postgres:
+    image: postgres:15-alpine
+    container_name: langfuse-postgres
+    environment:
+      - POSTGRES_DB=langfuse
+      - POSTGRES_USER=langfuse
+      - POSTGRES_PASSWORD=langfuse123
+    volumes:
+      - langfuse_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ClickHouse pour Langfuse v3 - CONFIGURATION CORRIGÉE
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.1
+    container_name: langfuse-clickhouse
+    environment:
+      - CLICKHOUSE_DB=langfuse
+      - CLICKHOUSE_USER=langfuse
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+      - CLICKHOUSE_PASSWORD=langfuse123
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse-init:/docker-entrypoint-initdb.d
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Langfuse LOCAL v3 - CONFIGURATION FINALE CORRIGÉE
+  langfuse:
+    image: langfuse/langfuse:latest
+    container_name: langfuse
+    ports:
+      - "3001:3000"
+    environment:
+      # Base de données PostgreSQL
+      - DATABASE_URL=postgresql://langfuse:langfuse123@langfuse-postgres:5432/langfuse
+      
+      # ClickHouse pour v3 - FORMAT CORRECT
+      - CLICKHOUSE_URL=http://langfuse:langfuse123@clickhouse:8123/langfuse
+      - CLICKHOUSE_USER=langfuse
+      - CLICKHOUSE_PASSWORD=langfuse123
+      
+      # Configuration Langfuse
+      - NEXTAUTH_SECRET=your-secret-key-here-change-in-production-12345678901234567890
+      - NEXTAUTH_URL=http://localhost:3001
+      - SALT=your-salt-here-change-in-production-1234567890
+      - ENCRYPTION_KEY=0123456789abcdef0123456789abcdef
+      
+      # Features
+      - LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=true
+      - LANGFUSE_DEFAULT_PROJECT_ID=default
+      - LANGFUSE_DEFAULT_PROJECT_SECRET_KEY=sk-lf-local-secret-key
+      - LANGFUSE_DEFAULT_PROJECT_PUBLIC_KEY=pk-lf-local-public-key
+      
+      # Désactiver ClickHouse temporairement pour debug
+      - LANGFUSE_DISABLE_CLICKHOUSE=false
+      
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/public/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   # Prometheus pour les métriques
   prometheus:
@@ -121,9 +201,12 @@ services:
     depends_on:
       - mlops-app
       - grafana
+      - langfuse
 
 volumes:
   redis_data:
   postgres_data:
+  langfuse_postgres_data:
+  clickhouse_data:
   prometheus_data:
   grafana_data:
