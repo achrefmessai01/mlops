@@ -426,7 +426,7 @@ class MonitoringDashboard:
                 self.db_cursor.execute(
                     """
                     INSERT INTO inference_logs (
-                        timestamp, user_ip, endpoint, model, prompt, prompt_length, response, response_length, latency, security_analysis, created_at
+                        timestamp, user_ip, endpoint, model, prompt, prompt_length, response, response_length, latency_ms, security_analysis, created_at
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
                     """,
                     (
@@ -438,7 +438,7 @@ class MonitoringDashboard:
                         log_entry.get("prompt_length"),
                         log_entry.get("response"),
                         log_entry.get("response_length"),
-                        log_entry.get("latency"),
+                        int(log_entry.get("latency", 0) * 1000),  # Convert seconds to milliseconds
                         Json(log_entry.get("security_analysis", {}))
                     )
                 )

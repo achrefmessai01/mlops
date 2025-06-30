@@ -1,0 +1,73 @@
+{
+  "timestamp": "2025-06-30T13:19:11.094334",
+  "analysis_period_hours": 24,
+  "conversation_analysis": {
+    "error": "object dict can't be used in 'await' expression"
+  },
+  "system_health": {
+    "analysis_timestamp": "2025-06-30T13:19:11.071227",
+    "period_hours": 24,
+    "total_conversations": 8,
+    "unique_users": 1,
+    "average_risk_score": 0.0,
+    "high_risk_conversations": 0,
+    "medium_risk_conversations": 0,
+    "model_usage": [
+      {
+        "model": "gpt35",
+        "count": 2
+      },
+      {
+        "model": "gemma3n",
+        "count": 2
+      },
+      {
+        "model": "llama4",
+        "count": 2
+      },
+      {
+        "model": "mistral",
+        "count": 1
+      },
+      {
+        "model": "gpt4",
+        "count": 1
+      }
+    ],
+    "security_concerns": [],
+    "performance_issues": []
+  },
+  "risk_dashboard": {
+    "risk_summary": {
+      "total_users": 1,
+      "critical_users": 0,
+      "high_risk_users": 0,
+      "medium_risk_users": 0,
+      "low_risk_users": 1
+    },
+    "users": [
+      {
+        "user_id": "172.18.0.1",
+        "conversation_count": 8,
+        "average_risk_score": 0.0,
+        "max_risk_score": 0.0,
+        "high_risk_conversations": 0,
+        "risk_level": "LOW"
+      }
+    ],
+    "system_alerts": {
+      "total_conversations": 8,
+      "unique_users": 1,
+      "high_risk_conversations": 0,
+      "security_concerns": [],
+      "performance_issues": []
+    }
+  },
+  "summary": {
+    "total_conversations": 0,
+    "high_risk_conversations": 0,
+    "unique_users": 1,
+    "critical_users": 0,
+    "high_risk_users": 0
+  }
+}

@@ -1,34 +1,72 @@
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  external_labels:
+    monitor: 'mlops-monitor'
 
 rule_files:
   - "alert_rules.yml"
-  # - "first_rules.yml"
-  # - "second_rules.yml"
 
 scrape_configs:
-  # MLOps Application
+  # MLOps Application - FIXED container name
   - job_name: 'mlops-app'
     static_configs:
-      - targets: ['mlops-app:8000']
+      - targets: ['mlops-app-main:8000']  # Updated to match your container name
     metrics_path: '/metrics'
-    scrape_interval: 5s
-    scrape_timeout: 5s
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # Judge Scheduler Service - DISABLED (service has initialization issues)
+  # - job_name: 'judge-scheduler'
+  #   static_configs:
+  #     - targets: ['judge-scheduler-service:8000']
+  #   metrics_path: '/metrics'
+  #   scrape_interval: 60s
+  #   scrape_timeout: 10s
+
+  # PostgreSQL Main Database - DISABLED (needs postgres_exporter)
+  # - job_name: 'postgres-main'
+  #   static_configs:
+  #     - targets: ['postgres-mlops-main:5432']
+  #   scrape_interval: 60s
+  #   scrape_timeout: 10s
+  #   metrics_path: '/metrics'
+
+  # Redis Cache - DISABLED (needs redis_exporter)
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-mlops-cache:6379']
+  #   scrape_interval: 60s
+  #   scrape_timeout: 10s
 
   # Prometheus itself
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
+    scrape_interval: 30s
 
-  # Node Exporter (if you add it later)
-  - job_name: 'node'
+  # Grafana Dashboard
+  - job_name: 'grafana'
     static_configs:
-      - targets: ['node-exporter:9100']
+      - targets: ['grafana-visualization:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 60s
+    scrape_timeout: 10s
+
+  # Nginx Proxy - DISABLED (needs nginx status module configuration)
+  # - job_name: 'nginx'
+  #   static_configs:
+  #     - targets: ['nginx-reverse-proxy:80']
+  #   metrics_path: '/nginx_status'
+  #   scrape_interval: 30s
+  #   scrape_timeout: 10s
 
 # Alerting configuration
 alerting:
   alertmanagers:
     - static_configs:
-        - targets:
-          # - alertmanager:9093
+        - targets: []
+          # - alertmanager:9093  # Uncomment when you add Alertmanager
+
+# Storage configuration is handled by command line arguments
+# This section is removed as it was causing configuration errors

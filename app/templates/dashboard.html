@@ -389,7 +389,7 @@
                 const anomaliesCount = (data && data.anomalies && data.anomalies.count) || 0;
 
                 document.getElementById('threats-count').textContent = threatsCount;
-                document.getElementById('avg-latency').textContent = avgLatency.toFixed(2) + 's';
+                document.getElementById('avg-latency').textContent = avgLatency.toFixed(2) + 'ms';
                 document.getElementById('total-requests').textContent = totalRequests.toLocaleString();
                 document.getElementById('anomalies-count').textContent = anomaliesCount;
                 

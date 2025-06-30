@@ -4,7 +4,7 @@ Module d'analyse des KPI et métriques d'usage pour le monitoring MLOps
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Any, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import logging
 from collections import defaultdict, Counter
@@ -56,7 +56,7 @@ class KPIAnalyzer:
                         prompt_length,
                         response,
                         response_length,
-                        latency,
+                        latency_ms,
                         security_analysis,
                         created_at
                     FROM inference_logs 
@@ -67,6 +67,11 @@ class KPIAnalyzer:
                 rows = cursor.fetchall()
                 self.usage_data = [dict(row) for row in rows]
                 self.logger.info(f"Loaded {len(self.usage_data)} records from database")
+                
+                # Debug: Log a sample record
+                if self.usage_data:
+                    sample_record = self.usage_data[0]
+                    self.logger.info(f"Sample record: {sample_record}")
                 
                 # Process the data for analytics
                 for record in self.usage_data:
@@ -98,7 +103,11 @@ class KPIAnalyzer:
             
             # Compteurs quotidiens
             self.daily_stats[date_key]['total_requests'] += 1
-            self.daily_stats[date_key]['total_latency'] += log_entry.get('latency', 0)
+            # Handle both latency (seconds) and latency_ms (milliseconds) for backward compatibility
+            latency_ms = log_entry.get('latency_ms', 0)
+            if latency_ms == 0 and 'latency' in log_entry:
+                latency_ms = log_entry.get('latency', 0) * 1000  # Convert seconds to milliseconds
+            self.daily_stats[date_key]['total_latency'] += latency_ms
             self.daily_stats[date_key]['total_prompt_length'] += log_entry.get('prompt_length', 0)
             self.daily_stats[date_key]['total_response_length'] += log_entry.get('response_length', 0)
             
@@ -108,17 +117,25 @@ class KPIAnalyzer:
             
             # Patterns utilisateur
             user = log_entry.get('user', 'anonymous')
+            # Handle both latency (seconds) and latency_ms (milliseconds) for backward compatibility
+            latency_ms_user = log_entry.get('latency_ms', 0)
+            if latency_ms_user == 0 and 'latency' in log_entry:
+                latency_ms_user = log_entry.get('latency', 0) * 1000  # Convert seconds to milliseconds
             self.user_patterns[user].append({
                 'timestamp': timestamp,
                 'model': model,
                 'prompt_length': log_entry.get('prompt_length', 0),
-                'latency': log_entry.get('latency', 0)
+                'latency_ms': latency_ms_user
             })
             
             # Performance du modèle
+            # Handle both latency (seconds) and latency_ms (milliseconds) for backward compatibility
+            latency_ms_model = log_entry.get('latency_ms', 0)
+            if latency_ms_model == 0 and 'latency' in log_entry:
+                latency_ms_model = log_entry.get('latency', 0) * 1000  # Convert seconds to milliseconds
             self.model_performance[model].append({
                 'timestamp': timestamp,
-                'latency': log_entry.get('latency', 0),
+                'latency_ms': latency_ms_model,
                 'prompt_length': log_entry.get('prompt_length', 0),
                 'response_length': log_entry.get('response_length', 0)
             })
@@ -134,18 +151,52 @@ class KPIAnalyzer:
         """
         Génère des analytics d'usage pour les N derniers jours
         """
-        end_date = datetime.now()
+        # Refresh data from database before generating analytics
+        self.load_usage_data_from_db()
+        
+        self.logger.info(f"Analytics: Loaded {len(self.usage_data)} records for analysis")
+        
+        # Use timezone-aware datetime for proper comparison with database timestamps
+        end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=days)
+        
+        self.logger.info(f"Analytics: Filtering data from {start_date} to {end_date}")
         
         # Filtrer les données par période
         try:
-            recent_data = [
-                entry for entry in self.usage_data
-                if datetime.fromisoformat(entry.get('timestamp', '').replace('Z', '+00:00')) >= start_date
-            ]
+            recent_data = []
+            for entry in self.usage_data:
+                timestamp = entry.get('timestamp', '')
+                try:
+                    # Handle different timestamp formats
+                    if isinstance(timestamp, datetime):
+                        # Ensure timezone-aware comparison
+                        if timestamp.tzinfo is None:
+                            # Assume UTC for naive datetime from database
+                            entry_date = timestamp.replace(tzinfo=timezone.utc)
+                        else:
+                            entry_date = timestamp
+                    elif isinstance(timestamp, str):
+                        # Try different formats
+                        if 'T' in timestamp:
+                            # ISO format
+                            entry_date = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                        else:
+                            # Try parsing as date string and assume UTC
+                            entry_date = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
+                    else:
+                        continue  # Skip entries with invalid timestamps
+                    
+                    if entry_date >= start_date:
+                        recent_data.append(entry)
+                except (ValueError, TypeError):
+                    continue  # Skip entries with unparseable timestamps
+                    
         except Exception as e:
             self.logger.warning(f"Erreur lors du filtrage des données: {e}")
             recent_data = []
+        
+        self.logger.info(f"Analytics: Filtered to {len(recent_data)} recent records")
         
         if not recent_data:
             return {
@@ -190,9 +241,9 @@ class KPIAnalyzer:
                 "total_requests": len(recent_data),
                 "unique_users": len(df['user'].unique()) if 'user' in df.columns and not df['user'].empty else 0,
                 "avg_requests_per_day": len(recent_data) / max(days, 1),  # Éviter division par zéro
-                "avg_latency": safe_mean(df['latency']) if 'latency' in df.columns else 0,
-                "median_latency": safe_median(df['latency']) if 'latency' in df.columns else 0,
-                "p95_latency": safe_quantile(df['latency'], 0.95) if 'latency' in df.columns else 0,
+                "avg_latency": safe_mean(df['latency_ms']) if 'latency_ms' in df.columns else 0,
+                "median_latency": safe_median(df['latency_ms']) if 'latency_ms' in df.columns else 0,
+                "p95_latency": safe_quantile(df['latency_ms'], 0.95) if 'latency_ms' in df.columns else 0,
                 "avg_prompt_length": safe_mean(df['prompt_length']) if 'prompt_length' in df.columns else 0,
                 "avg_response_length": safe_mean(df['response_length']) if 'response_length' in df.columns else 0
             }
@@ -202,7 +253,7 @@ class KPIAnalyzer:
         if 'model' in df.columns and not df['model'].empty:
             try:
                 model_stats = df.groupby('model').agg({
-                    'latency': ['count', 'mean', 'median', 'std'],
+                    'latency_ms': ['count', 'mean', 'median', 'std'],
                     'prompt_length': 'mean',
                     'response_length': 'mean'
                 }).round(3)
@@ -210,14 +261,14 @@ class KPIAnalyzer:
                 analytics["model_performance"] = {}
                 for model in model_stats.index:
                     # Gestion sécurisée des valeurs NaN
-                    latency_mean = model_stats.loc[model, ('latency', 'mean')]
-                    latency_median = model_stats.loc[model, ('latency', 'median')]
-                    latency_std = model_stats.loc[model, ('latency', 'std')]
+                    latency_mean = model_stats.loc[model, ('latency_ms', 'mean')]
+                    latency_median = model_stats.loc[model, ('latency_ms', 'median')]
+                    latency_std = model_stats.loc[model, ('latency_ms', 'std')]
                     prompt_length_mean = model_stats.loc[model, ('prompt_length', 'mean')]
                     response_length_mean = model_stats.loc[model, ('response_length', 'mean')]
                     
                     analytics["model_performance"][model] = {
-                        "request_count": int(model_stats.loc[model, ('latency', 'count')]),
+                        "request_count": int(model_stats.loc[model, ('latency_ms', 'count')]),
                         "avg_latency": float(latency_mean) if not np.isnan(latency_mean) else 0,
                         "median_latency": float(latency_median) if not np.isnan(latency_median) else 0,
                         "latency_std": float(latency_std) if not np.isnan(latency_std) else 0,
@@ -270,7 +321,7 @@ class KPIAnalyzer:
         if 'user' in df.columns:
             user_stats = df.groupby('user').agg({
                 'timestamp': 'count',
-                'latency': ['mean', 'sum'],
+                'latency_ms': ['mean', 'sum'],
                 'prompt_length': 'mean'
             }).round(3)
             
@@ -286,8 +337,8 @@ class KPIAnalyzer:
                 analytics["user_analytics"]["top_users"].append({
                     "user": user,
                     "request_count": int(top_users.loc[user, ('timestamp', 'count')]),
-                    "avg_latency": float(top_users.loc[user, ('latency', 'mean')]),
-                    "total_latency": float(top_users.loc[user, ('latency', 'sum')]),
+                    "avg_latency": float(top_users.loc[user, ('latency_ms', 'mean')]),
+                    "total_latency": float(top_users.loc[user, ('latency_ms', 'sum')]),
                     "avg_prompt_length": float(top_users.loc[user, ('prompt_length', 'mean')])
                 })
         
@@ -325,9 +376,9 @@ class KPIAnalyzer:
         }
         
         # Détection d'anomalies de latence (seuils adaptés selon la taille des données)
-        if 'latency' in df.columns and len(df) >= 5:
-            latency_mean = df['latency'].mean()
-            latency_std = df['latency'].std()
+        if 'latency_ms' in df.columns and len(df) >= 5:
+            latency_mean = df['latency_ms'].mean()
+            latency_std = df['latency_ms'].std()
             
             # Adapter le multiplicateur selon la confiance des données
             if len(df) >= 100:
@@ -339,14 +390,14 @@ class KPIAnalyzer:
             
             high_latency_threshold = latency_mean + multiplier * latency_std
             
-            high_latency_requests = df[df['latency'] > high_latency_threshold]
+            high_latency_requests = df[df['latency_ms'] > high_latency_threshold]
             if len(high_latency_requests) > 0:
                 anomalies["detected_anomalies"].append({
                     "type": "high_latency",
                     "count": len(high_latency_requests),
                     "threshold": float(high_latency_threshold),
                     "multiplier_used": multiplier,
-                    "max_latency": float(high_latency_requests['latency'].max()),
+                    "max_latency": float(high_latency_requests['latency_ms'].max()),
                     "affected_users": high_latency_requests['user'].unique().tolist() if 'user' in df.columns else []
                 })
         

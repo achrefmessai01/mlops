@@ -1,0 +1,47 @@
+{
+  "timestamp": "2025-06-30T11:35:50.413881",
+  "analysis_period_hours": 24,
+  "conversation_analysis": {
+    "conversations_analyzed": 0,
+    "high_risk_count": 0,
+    "average_risk_score": 0,
+    "risk_categories": {},
+    "analyses": []
+  },
+  "system_health": {
+    "analysis_timestamp": "2025-06-30T11:35:50.388812",
+    "period_hours": 24,
+    "total_conversations": 0,
+    "unique_users": 0,
+    "average_risk_score": 0.0,
+    "high_risk_conversations": 0,
+    "medium_risk_conversations": 0,
+    "model_usage": [],
+    "security_concerns": [],
+    "performance_issues": []
+  },
+  "risk_dashboard": {
+    "risk_summary": {
+      "total_users": 0,
+      "critical_users": 0,
+      "high_risk_users": 0,
+      "medium_risk_users": 0,
+      "low_risk_users": 0
+    },
+    "users": [],
+    "system_alerts": {
+      "total_conversations": 0,
+      "unique_users": 0,
+      "high_risk_conversations": 0,
+      "security_concerns": [],
+      "performance_issues": []
+    }
+  },
+  "summary": {
+    "total_conversations": 0,
+    "high_risk_conversations": 0,
+    "unique_users": 0,
+    "critical_users": 0,
+    "high_risk_users": 0
+  }
+}

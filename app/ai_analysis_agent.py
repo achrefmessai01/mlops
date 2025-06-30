@@ -224,8 +224,25 @@ Sois spécifique, quantitatif et actionnable dans tes recommandations.
         ai_response = self._call_ai_judge(analysis_prompt)
         
         try:
+            # Clean the response by removing markdown code blocks if present
+            cleaned_response = ai_response.strip()
+            if cleaned_response.startswith('```json'):
+                # Remove the opening ```json and closing ```
+                cleaned_response = cleaned_response[7:]  # Remove ```json
+                if cleaned_response.endswith('```'):
+                    cleaned_response = cleaned_response[:-3]  # Remove ```
+                cleaned_response = cleaned_response.strip()
+            elif cleaned_response.startswith('```'):
+                # Remove generic code blocks
+                lines = cleaned_response.split('\n')
+                if lines[0].strip() == '```' or lines[0].strip().startswith('```'):
+                    lines = lines[1:]
+                if lines and lines[-1].strip() == '```':
+                    lines = lines[:-1]
+                cleaned_response = '\n'.join(lines).strip()
+            
             # Parser la réponse JSON
-            analysis = json.loads(ai_response)
+            analysis = json.loads(cleaned_response)
             
             # Ajouter des métadonnées enrichies
             analysis["metadata"] = {
@@ -330,10 +347,10 @@ Sois spécifique, quantitatif et actionnable dans tes recommandations.
         
         # Insights de performance
         avg_latency = kpi_data.get("general_metrics", {}).get("avg_latency", 0)
-        if avg_latency > 10.0:
+        if avg_latency > 10000.0:  # 10 seconds in milliseconds
             additional_insights.append({
                 "type": "performance_degradation",
-                "message": f"Dégradation significative des performances: {avg_latency:.2f}s",
+                "message": f"Dégradation significative des performances: {avg_latency:.2f}ms",
                 "recommendation": "Investigation immédiate des goulots d'étranglement requise",
                 "urgency": "high"
             })

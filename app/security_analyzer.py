@@ -187,3 +187,21 @@ class SecurityAnalyzer:
         """
         for key in self.threat_stats:
             self.threat_stats[key] = 0
+    
+    def log_security_event(self, event_data: dict):
+        """
+        Log security event for tracking
+        """
+        try:
+            # Store in memory for now - in production you'd use database
+            if not hasattr(self, 'security_events'):
+                self.security_events = []
+            
+            self.security_events.append(event_data)
+            
+            # Keep only last 1000 events to prevent memory issues
+            if len(self.security_events) > 1000:
+                self.security_events = self.security_events[-1000:]
+                
+        except Exception as e:
+            logging.error(f"Failed to log security event: {e}")

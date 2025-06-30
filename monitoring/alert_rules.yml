@@ -1,47 +1,160 @@
 groups:
   - name: mlops_alerts
     rules:
-      - alert: HighLatency
-        expr: histogram_quantile(0.95, rate(inference_latency_seconds_bucket[5m])) > 5
-        for: 2m
+      # High Error Rate Alert
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 5m
         labels:
           severity: warning
+          service: mlops-app
         annotations:
-          summary: "High inference latency detected"
-          description: "95th percentile latency is {{ $value }}s for the last 5 minutes"
+          summary: "High error rate detected in MLOps application"
+          description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes"
 
-      - alert: HighErrorRate
-        expr: rate(inference_requests_total{status="error"}[5m]) > 0.1
+      # High Response Time Alert
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: mlops-app
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s"
+
+      # High Risk User Activity Alert
+      - alert: HighRiskUserActivity
+        expr: mlops_security_high_risk_users_total > 0
         for: 1m
         labels:
           severity: critical
+          service: security
         annotations:
-          summary: "High error rate detected"
-          description: "Error rate is {{ $value }} errors per second"
+          summary: "High-risk user activity detected"
+          description: "{{ $value }} high-risk users detected in the system"
 
-      - alert: MLOpsAppDown
-        expr: up{job="mlops-app"} == 0
-        for: 1m
+      # Critical Security Threats Alert
+      - alert: CriticalSecurityThreats
+        expr: mlops_security_critical_threats_total > 0
+        for: 0m
         labels:
           severity: critical
+          service: security
         annotations:
-          summary: "MLOps application is down"
-          description: "The MLOps application has been down for more than 1 minute"
+          summary: "Critical security threats detected"
+          description: "{{ $value }} critical security threats detected - immediate action required"
 
+      # Database Connection Issues
+      - alert: DatabaseConnectionDown
+        expr: up{job="postgres-main"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: database
+        annotations:
+          summary: "Main database connection down"
+          description: "PostgreSQL main database is not responding"
+
+      # Redis Connection Issues
+      - alert: RedisConnectionDown
+        expr: up{job="redis"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: cache
+        annotations:
+          summary: "Redis cache connection down"
+          description: "Redis cache is not responding"
+
+      # High Cost Alert
+      - alert: HighAICosts
+        expr: increase(mlops_ai_total_cost_usd[1h]) > 50
+        for: 5m
+        labels:
+          severity: warning
+          service: cost-management
+        annotations:
+          summary: "High AI costs detected"
+          description: "AI costs increased by ${{ $value }} in the last hour"
+
+      # Disk Space Alert
+      - alert: DiskSpaceHigh
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "Disk space usage high"
+          description: "Disk space usage is {{ $value | humanizePercentage }}"
+
+      # Memory Usage Alert
       - alert: HighMemoryUsage
         expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
         for: 5m
         labels:
-          severity: warning
+          severity: critical
+          service: infrastructure
         annotations:
           summary: "High memory usage detected"
-          description: "Memory usage is above 90% for more than 5 minutes"
+          description: "Memory usage is {{ $value | humanizePercentage }}"
 
-      - alert: HighCPUUsage
-        expr: 100 - (avg(irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+  - name: judge_system_alerts
+    rules:
+      # Judge Analysis Failures
+      - alert: JudgeAnalysisFailures
+        expr: increase(mlops_judge_analysis_failures_total[10m]) > 3
+        for: 2m
+        labels:
+          severity: warning
+          service: judge-system
+        annotations:
+          summary: "Judge analysis failures detected"
+          description: "{{ $value }} judge analysis failures in the last 10 minutes"
+
+      # No Recent Judge Analysis
+      - alert: NoRecentJudgeAnalysis
+        expr: time() - mlops_judge_last_analysis_timestamp > 7200  # 2 hours
         for: 5m
         labels:
           severity: warning
+          service: judge-system
         annotations:
-          summary: "High CPU usage detected"
-          description: "CPU usage is above 85% for more than 5 minutes"
+          summary: "No recent judge analysis"
+          description: "No judge analysis has been performed in the last 2 hours"
+
+      # Judge System Overload
+      - alert: JudgeSystemOverload
+        expr: mlops_judge_queue_size > 100
+        for: 5m
+        labels:
+          severity: critical
+          service: judge-system
+        annotations:
+          summary: "Judge system overloaded"
+          description: "Judge analysis queue has {{ $value }} pending items"
+
+  - name: business_alerts
+    rules:
+      # Low User Engagement
+      - alert: LowUserEngagement
+        expr: rate(mlops_requests_total[1h]) < 10
+        for: 30m
+        labels:
+          severity: warning
+          service: business
+        annotations:
+          summary: "Low user engagement detected"
+          description: "Request rate is only {{ $value }} requests per second"
+
+      # Model Performance Degradation
+      - alert: ModelPerformanceDegradation
+        expr: mlops_model_quality_score < 0.7
+        for: 10m
+        labels:
+          severity: warning
+          service: ai-models
+        annotations:
+          summary: "Model performance degradation detected"
+          description: "Model quality score is {{ $value }}, below acceptable threshold"
