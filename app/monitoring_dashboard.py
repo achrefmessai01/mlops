@@ -7,11 +7,13 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 import json
 import os
+import threading
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 import logging
 import psycopg2
 from psycopg2.extras import Json
+import ipaddress
 
 # Importer nos modules d'analyse
 from security_analyzer import SecurityAnalyzer
@@ -27,20 +29,31 @@ class MonitoringDashboard:
         self.ai_agent = AIAnalysisAgent()
         self.logger = logging.getLogger(__name__)
         
+        # Cache simple pour les recommandations
+        self._recommendations_cache = None
+        self._recommendations_cache_time = None
+        self._cache_duration = 5  # 5 seconds for testing
+        
         # Créer le dossier templates s'il n'existe pas
         os.makedirs("templates", exist_ok=True)
         os.makedirs("static", exist_ok=True)
         
         # Database connection setup
-        self.db_conn = psycopg2.connect(
-            dbname=os.getenv("POSTGRES_DB", "mlops"),
-            user=os.getenv("POSTGRES_USER", "mlops"),
-            password=os.getenv("POSTGRES_PASSWORD", "mlops"),
-            host=os.getenv("POSTGRES_HOST", "mlops-postgres"),
-            port=os.getenv("POSTGRES_PORT", "5432")
-        )
-        self.db_conn.autocommit = True
-        self.db_cursor = self.db_conn.cursor()
+        try:
+            self.db_conn = psycopg2.connect(
+                dbname=os.getenv("POSTGRES_DB", "mlops"),
+                user=os.getenv("POSTGRES_USER", "mlops"),
+                password=os.getenv("POSTGRES_PASSWORD", "mlops"),
+                host=os.getenv("POSTGRES_HOST", "localhost"),
+                port=os.getenv("POSTGRES_PORT", "5432")
+            )
+            self.db_conn.autocommit = True
+            self.db_cursor = self.db_conn.cursor()
+            self.logger.info("Database connection established successfully")
+        except Exception as e:
+            self.logger.error(f"Database connection failed: {e}")
+            self.db_conn = None
+            self.db_cursor = None
         
         # Ajouter les routes du dashboard
         self._setup_routes()
@@ -49,8 +62,6 @@ class MonitoringDashboard:
         """
         Configure les routes du dashboard
         """
-        # Monter les fichiers statiques
-        self.app.mount("/static", StaticFiles(directory="static"), name="static")
         
         @self.app.get("/dashboard", response_class=HTMLResponse)
         async def dashboard_home(request: Request):
@@ -62,49 +73,34 @@ class MonitoringDashboard:
             API pour obtenir les données de vue d'ensemble
             """
             try:
-                # Récupérer les métriques avec gestion d'erreur
-                try:
-                    security_stats = self.security_analyzer.get_threat_statistics()
-                except Exception as e:
-                    self.logger.warning(f"Erreur lors de la récupération des stats de sécurité: {e}")
-                    security_stats = {"total_threats": 0, "threat_breakdown": {}}
+                # Récupérer les métriques - fail fast if no real data
+                security_stats = self.security_analyzer.get_threat_statistics()
+                # Générer l'intelligence de menaces avancée
+                threat_intelligence = self.security_analyzer.generate_threat_intelligence()
                 
-                try:
-                    usage_analytics = self.kpi_analyzer.get_usage_analytics(days=7)
-                    if "error" in usage_analytics:
-                        # Cas où il n'y a pas de données
-                        usage_analytics = {
-                            "general_metrics": {
-                                "total_requests": 0,
-                                "avg_latency": 0,
-                                "unique_users": 0,
-                                "avg_requests_per_day": 0
-                            }
-                        }
-                except Exception as e:
-                    self.logger.warning(f"Erreur lors de la récupération des analytics: {e}")
-                    usage_analytics = {
-                        "general_metrics": {
-                            "total_requests": 0,
-                            "avg_latency": 0,
-                            "unique_users": 0,
-                            "avg_requests_per_day": 0
-                        }
-                    }
+                usage_analytics = self.kpi_analyzer.get_usage_analytics(days=7)
+                if "error" in usage_analytics:
+                    raise HTTPException(status_code=500, detail="Pas de données d'usage disponibles")
                 
-                try:
-                    anomalies = self.kpi_analyzer.detect_anomalies()
-                except Exception as e:
-                    self.logger.warning(f"Erreur lors de la détection d'anomalies: {e}")
-                    anomalies = {"detected_anomalies": []}
+                anomalies = self.kpi_analyzer.detect_anomalies()
+                
+                # Process enhanced security breakdown to get keyword data
+                enhanced_breakdown = self._process_enhanced_security_breakdown(security_stats.get("threat_breakdown", {}))
                 
                 overview = {
                     "timestamp": datetime.now().isoformat(),
                     "security": {
                         "total_threats": security_stats.get("total_threats", 0),
-                        "threat_level": "HIGH" if security_stats.get("total_threats", 0) > 10 else "MEDIUM" if security_stats.get("total_threats", 0) > 5 else "LOW",
-                        "breakdown": security_stats.get("threat_breakdown", {})
+                        "threat_level": threat_intelligence.get("threat_level", "LOW"),
+                        "breakdown": security_stats.get("threat_breakdown", {}),
+                        "enhanced_breakdown": enhanced_breakdown,
+                        "threat_intelligence": threat_intelligence,
+                        "high_severity_threats": security_stats.get("threat_breakdown", {}).get("high_severity_threats", 0),
+                        "multi_vector_attacks": security_stats.get("threat_breakdown", {}).get("multi_vector_attacks", 0),
+                        "repeated_offenders": security_stats.get("threat_breakdown", {}).get("repeated_offenders", 0)
                     },
+                    # Add keyword breakdown for frontend compatibility
+                    "keyword_breakdown": self._extract_keyword_breakdown_for_frontend(enhanced_breakdown),
                     "usage": {
                         "total_requests": usage_analytics.get("general_metrics", {}).get("total_requests", 0),
                         "avg_latency": usage_analytics.get("general_metrics", {}).get("avg_latency", 0),
@@ -121,26 +117,8 @@ class MonitoringDashboard:
                 
             except Exception as e:
                 self.logger.error(f"Erreur dans dashboard_overview: {e}")
-                # Retourner une réponse par défaut plutôt que lever une exception
-                default_overview = {
-                    "timestamp": datetime.now().isoformat(),
-                    "security": {
-                        "total_threats": 0,
-                        "threat_level": "LOW",
-                        "breakdown": {}
-                    },
-                    "usage": {
-                        "total_requests": 0,
-                        "avg_latency": 0,
-                        "unique_users": 0,
-                        "requests_per_day": 0
-                    },
-                    "anomalies": {
-                        "count": 0,
-                        "types": []
-                    }
-                }
-                return JSONResponse(content=default_overview)
+                # Raise exception instead of returning mock data - let frontend handle error
+                raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des données du dashboard: {str(e)}")
         
         @self.app.get("/api/dashboard/security")
         async def dashboard_security():
@@ -178,74 +156,155 @@ class MonitoringDashboard:
         @self.app.get("/api/dashboard/recommendations")
         async def dashboard_recommendations():
             """
-            API pour les recommandations de l'IA
+            API pour les recommandations de l'IA avec cache et fallback rapide
             """
             try:
-                # Collecter toutes les données avec gestion d'erreur
-                try:
-                    security_data = self.security_analyzer.get_threat_statistics()
-                except Exception as e:
-                    self.logger.warning(f"Erreur sécurité: {e}")
-                    security_data = {"total_threats": 0, "threat_breakdown": {}}
+                # Vérifier le cache d'abord
+                now = datetime.now()
+                if (self._recommendations_cache is not None and 
+                    self._recommendations_cache_time is not None and
+                    (now - self._recommendations_cache_time).seconds < self._cache_duration):
+                    self.logger.info("Retour des recommandations en cache")
+                    return JSONResponse(content=self._recommendations_cache)
                 
-                try:
-                    kpi_data = self.kpi_analyzer.get_usage_analytics(days=7)
-                    if "error" in kpi_data:
-                        kpi_data = {"general_metrics": {"total_requests": 0, "avg_latency": 0}}
-                except Exception as e:
-                    self.logger.warning(f"Erreur KPI: {e}")
-                    kpi_data = {"general_metrics": {"total_requests": 0, "avg_latency": 0}}
+                # Collecter toutes les données - fail fast if no real data
+                security_data = self.security_analyzer.get_threat_statistics()
+                kpi_data = self.kpi_analyzer.get_usage_analytics(days=7)
+                if "error" in kpi_data:
+                    raise HTTPException(status_code=500, detail="Pas de données KPI disponibles")
                 
-                try:
-                    anomalies = self.kpi_analyzer.detect_anomalies()
-                except Exception as e:
-                    self.logger.warning(f"Erreur anomalies: {e}")
-                    anomalies = {"detected_anomalies": []}
+                anomalies = self.kpi_analyzer.detect_anomalies()
+                prompt_analysis = self.kpi_analyzer.get_prompt_analysis()
                 
+                # Analyse IA uniquement - pas de fallback avec données fictives
                 try:
-                    prompt_analysis = self.kpi_analyzer.get_prompt_analysis()
-                except Exception as e:
-                    self.logger.warning(f"Erreur analyse prompt: {e}")
-                    prompt_analysis = {"total_prompts": 0}
-                
-                # Générer les recommandations avec fallback
-                try:
-                    recommendations = self.ai_agent.generate_comprehensive_analysis(
-                        security_data, kpi_data, anomalies, prompt_analysis
-                    )
+                    self.logger.info("Analyse IA en cours...")
                     
-                    # Vérifier que la structure est correcte
-                    if not isinstance(recommendations, dict):
-                        raise ValueError("Réponse de l'IA malformée")
+                    # Initialize variables
+                    ai_success = False
+                    ai_error = None
+                    recommendations = None
                     
-                    # S'assurer que les champs requis existent
-                    if "recommendations" not in recommendations:
-                        recommendations["recommendations"] = []
-                    if "summary" not in recommendations:
-                        recommendations["summary"] = "Aucune recommandation disponible pour le moment."
+                    # Pour Windows, utiliser threading au lieu de signal
+                    def ai_analysis_task():
+                        nonlocal recommendations, ai_success, ai_error
+                        try:
+                            recommendations = self.ai_agent.generate_comprehensive_analysis(
+                                security_data, kpi_data, anomalies, prompt_analysis
+                            )
+                            ai_success = True
+                        except Exception as e:
+                            ai_error = e
+                            ai_success = False
                     
-                    return JSONResponse(content=recommendations)
+                    # Lancer l'analyse IA dans un thread avec timeout
+                    thread = threading.Thread(target=ai_analysis_task)
+                    thread.daemon = True
+                    thread.start()
+                    thread.join(timeout=30)  # 30 secondes max pour l'analyse IA
+                    
+                    if ai_success and recommendations:
+                        # Vérifier que la structure est correcte
+                        if not isinstance(recommendations, dict):
+                            raise ValueError("Réponse de l'IA malformée")
+                        
+                        # Log the AI response structure
+                        print(f"[DEBUG] AI response keys: {list(recommendations.keys())}")
+                        if "recommendations" in recommendations:
+                            print(f"[DEBUG] Number of AI recommendations: {len(recommendations['recommendations'])}")
+                            if recommendations['recommendations']:
+                                print(f"[DEBUG] First AI recommendation keys: {list(recommendations['recommendations'][0].keys())}")
+                                print(f"[DEBUG] First AI recommendation: {json.dumps(recommendations['recommendations'][0], indent=2)}")
+                        
+                        # S'assurer que les champs requis existent
+                        if "recommendations" not in recommendations:
+                            recommendations["recommendations"] = []
+                        
+                        # Map executive_summary to summary for dashboard compatibility
+                        if "executive_summary" in recommendations and "summary" not in recommendations:
+                            recommendations["summary"] = recommendations["executive_summary"]
+                            self.logger.info("Mapped executive_summary to summary for dashboard")
+                        
+                        # Clean up unwanted summary fields from successful AI analysis
+                        if len(recommendations.get("recommendations", [])) > 0:
+                            # We have recommendations, so remove any generic summary
+                            if "summary" in recommendations:
+                                summary_text = recommendations["summary"]
+                                # Remove if it's a generic/fallback message
+                                if any(phrase in summary_text for phrase in [
+                                    "terminée sans recommandations",
+                                    "Service IA juge indisponible", 
+                                    "Analyse automatique de base"
+                                ]):
+                                    del recommendations["summary"]
+                                    self.logger.info("Removed generic summary from successful AI analysis")
+                        
+                        # Only add default summary if no recommendations exist
+                        elif len(recommendations.get("recommendations", [])) == 0:
+                            if "summary" not in recommendations:
+                                recommendations["summary"] = "Aucune recommandation générée pour cette analyse."
+                        
+                        # Log before caching
+                        print(f"[DEBUG] Before caching - recommendations keys: {list(recommendations.keys())}")
+                        
+                        # Mettre en cache le résultat
+                        self._recommendations_cache = recommendations
+                        self._recommendations_cache_time = now
+                        
+                        self.logger.info("Analyse IA réussie")
+                        return JSONResponse(content=recommendations)
+                    else:
+                        # Fallback avec données par défaut
+                        self.logger.warning("Analyse IA échouée, utilisation du fallback détaillé")
+                        fallback_recommendations = {
+                            "summary": "Analyse automatique - Service IA temporairement indisponible",
+                            "recommendations": [
+                                {
+                                    "priority": "MEDIUM",
+                                    "category": "MONITORING",
+                                    "title": "Surveillance en temps réel active",
+                                    "description": "Le système continue la surveillance malgré l'indisponibilité de l'IA",
+                                    "action_items": [
+                                        "Continuer la surveillance en temps réel",
+                                        "Vérifier les logs système",
+                                        "Contrôler la connectivité réseau"
+                                    ],
+                                    "impact": "Surveillance continue assurée",
+                                    "timeline": "En cours"
+                                },
+                                {
+                                    "priority": "LOW",
+                                    "category": "SYSTEM",
+                                    "title": "Reconnexion AI en attente",
+                                    "description": "Service d'analyse IA en attente de rétablissement automatique",
+                                    "action_items": [
+                                        "Vérifier la connectivité AI dans 5 minutes",
+                                        "Surveiller les performances système"
+                                    ],
+                                    "impact": "Fonctionnalités réduites temporairement",
+                                    "timeline": "5-10 minutes"
+                                }
+                            ],
+                            "metadata": {
+                                "analysis_type": "fallback",
+                                "generated_at": datetime.now().isoformat(),
+                                "status": "Service IA indisponible"
+                            }
+                        }
+                        
+                        # Mettre en cache le résultat de fallback
+                        self._recommendations_cache = fallback_recommendations
+                        self._recommendations_cache_time = now
+                        
+                        return JSONResponse(content=fallback_recommendations)
                     
                 except Exception as ai_error:
                     self.logger.error(f"Erreur lors de l'analyse IA: {ai_error}")
-                    # Retourner des recommandations basiques basées sur les règles
-                    fallback_recommendations = self._generate_fallback_recommendations(
-                        security_data, kpi_data, anomalies
-                    )
-                    return JSONResponse(content=fallback_recommendations)
+                    raise HTTPException(status_code=503, detail="Service d'analyse IA temporairement indisponible")
                 
             except Exception as e:
                 self.logger.error(f"Erreur dans dashboard_recommendations: {e}")
-                # Retourner une structure minimale mais valide
-                default_recommendations = {
-                    "summary": "Système en cours d'initialisation. Revenez dans quelques minutes.",
-                    "recommendations": [],
-                    "metadata": {
-                        "generated_at": datetime.now().isoformat(),
-                        "status": "fallback"
-                    }
-                }
-                return JSONResponse(content=default_recommendations)
+                raise HTTPException(status_code=500, detail=f"Erreur lors de la génération des recommandations: {str(e)}")
         
         @self.app.get("/api/dashboard/alerts")
         async def dashboard_alerts():
@@ -264,11 +323,7 @@ class MonitoringDashboard:
 
                 alerts = []
                 # Vérifier les menaces de sécurité
-                try:
-                    security_stats = self.security_analyzer.get_threat_statistics()
-                except Exception as e:
-                    self.logger.error(f"Erreur get_threat_statistics: {e}")
-                    security_stats = {"total_threats": 0}
+                security_stats = self.security_analyzer.get_threat_statistics()
                 if security_stats.get("total_threats", 0) > 5:
                     alerts.append({
                         "type": "security",
@@ -276,12 +331,9 @@ class MonitoringDashboard:
                         "message": f"{security_stats['total_threats']} menaces de sécurité détectées",
                         "timestamp": datetime.now().isoformat()
                     })
+                
                 # Vérifier les anomalies
-                try:
-                    anomalies = self.kpi_analyzer.detect_anomalies()
-                except Exception as e:
-                    self.logger.error(f"Erreur detect_anomalies: {e}")
-                    anomalies = {"detected_anomalies": []}
+                anomalies = self.kpi_analyzer.detect_anomalies()
                 for anomaly in anomalies.get("detected_anomalies", []):
                     alerts.append({
                         "type": "anomaly",
@@ -290,24 +342,22 @@ class MonitoringDashboard:
                         "timestamp": datetime.now().isoformat(),
                         "details": anomaly
                     })
+                
                 # Vérifier les performances
-                try:
-                    usage_analytics = self.kpi_analyzer.get_usage_analytics(days=1)
-                except Exception as e:
-                    self.logger.error(f"Erreur get_usage_analytics: {e}")
-                    usage_analytics = {"general_metrics": {}}
+                usage_analytics = self.kpi_analyzer.get_usage_analytics(days=1)
                 avg_latency = usage_analytics.get("general_metrics", {}).get("avg_latency", 0)
-                if avg_latency > 5.0:
+                if avg_latency > 5000.0:  # 5000ms = 5s
                     alerts.append({
                         "type": "performance",
                         "level": "warning",
-                        "message": f"Latence élevée: {avg_latency:.2f}s",
+                        "message": f"Latence élevée: {avg_latency:.2f}ms",
                         "timestamp": datetime.now().isoformat()
                     })
+                
                 return JSONResponse(content={"alerts": alerts, "count": len(alerts)})
             except Exception as e:
                 self.logger.error(f"Erreur dans dashboard_alerts: {e}")
-                return JSONResponse(content={"alerts": [], "count": 0})
+                raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des alertes: {str(e)}")
         
         @self.app.post("/api/dashboard/analyze-prompt")
         async def analyze_prompt_security(request: Request):
@@ -334,30 +384,39 @@ class MonitoringDashboard:
             API pour le rapport quotidien
             """
             try:
-                # Collecter toutes les données
+                # Collecter toutes les données - fail fast if no real data
+                security_data = self.security_analyzer.get_threat_statistics()
+                usage_data = self.kpi_analyzer.get_usage_analytics(days=1)
+                if "error" in usage_data:
+                    raise HTTPException(status_code=500, detail="Pas de données d'usage disponibles pour le rapport quotidien")
+                
+                anomalies_data = self.kpi_analyzer.detect_anomalies()
+                prompts_data = self.kpi_analyzer.get_prompt_analysis()
+                
                 all_data = {
-                    "security": self.security_analyzer.get_threat_statistics(),
-                    "usage": self.kpi_analyzer.get_usage_analytics(days=1),
-                    "anomalies": self.kpi_analyzer.detect_anomalies(),
-                    "prompts": self.kpi_analyzer.get_prompt_analysis()
+                    "security": security_data,
+                    "usage": usage_data,
+                    "anomalies": anomalies_data,
+                    "prompts": prompts_data
                 }
                 
-                # Générer le rapport
-                report = self.ai_agent.generate_daily_report(all_data)
+                # Générer le rapport avec l'IA - fail fast si pas disponible
+                report = self.ai_agent.generate_daily_executive_report(all_data)
                 
                 return JSONResponse(content={
                     "report": report,
                     "generated_at": datetime.now().isoformat(),
                     "data_summary": {
-                        "total_threats": all_data["security"].get("total_threats", 0),
-                        "total_requests": all_data["usage"].get("general_metrics", {}).get("total_requests", 0),
-                        "anomalies_count": len(all_data["anomalies"].get("detected_anomalies", [])),
-                        "prompts_analyzed": all_data["prompts"].get("total_prompts", 0)
+                        "total_threats": security_data.get("total_threats", 0),
+                        "total_requests": usage_data.get("general_metrics", {}).get("total_requests", 0),
+                        "anomalies_count": len(anomalies_data.get("detected_anomalies", [])),
+                        "prompts_analyzed": prompts_data.get("total_prompts", 0)
                     }
                 })
                 
             except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
+                self.logger.error(f"Erreur dans daily_report: {e}")
+                raise HTTPException(status_code=500, detail=f"Erreur lors de la génération du rapport quotidien: {str(e)}")
         
         @self.app.get("/api/dashboard/export/{data_type}")
         async def export_data(data_type: str):
@@ -400,7 +459,6 @@ class MonitoringDashboard:
             # Extract user_ip: must be a valid IPv4/IPv6 string or None
             user_ip = log_entry.get("user_ip") or log_entry.get("user")
             if user_ip is not None:
-                import ipaddress
                 try:
                     user_ip = str(ipaddress.ip_address(user_ip))
                 except Exception:
@@ -457,7 +515,7 @@ class MonitoringDashboard:
                     self.logger.warning(f"SECURITY_ALERT: {security_analysis}")
                     # Générer une alerte si critique
                     if security_analysis["risk_level"] == "CRITICAL":
-                        alert = self.ai_agent.generate_security_alert(security_analysis)
+                        alert = self.ai_agent.generate_security_threat_analysis(security_analysis)
                         if alert:
                             self.logger.critical(f"CRITICAL_SECURITY_ALERT: {alert}")
         except Exception as e:
@@ -479,112 +537,99 @@ class MonitoringDashboard:
             self.logger.error(f"Erreur dans get_dashboard_summary: {e}")
             return {"error": str(e)}
     
-    def _generate_fallback_recommendations(self, security_data, kpi_data, anomalies):
+    def _process_enhanced_security_breakdown(self, threat_breakdown: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Génère des recommandations de base basées sur des règles simples
+        Process enhanced security breakdown for dashboard visualization
         """
-        recommendations = []
+        # Categorize threats into main categories and keyword categories
+        main_categories = {
+            "system_override": 0,
+            "info_extraction": 0,
+            "jailbreak_advanced": 0,
+            "social_engineering": 0,
+            "credential_harvesting": 0,
+            "code_injection": 0,
+            "safety_bypass": 0,
+            "model_extraction": 0
+        }
         
-        total_threats = security_data.get("total_threats", 0)
-        avg_latency = kpi_data.get("general_metrics", {}).get("avg_latency", 0)
-        total_requests = kpi_data.get("general_metrics", {}).get("total_requests", 0)
-        anomalies_count = len(anomalies.get("detected_anomalies", []))
+        keyword_categories = {
+            "system_admin_keywords": 0,
+            "security_exploit_keywords": 0,
+            "network_infra_keywords": 0,
+            "code_execution_keywords": 0,
+            "crypto_auth_keywords": 0,
+            "sensitive_data_keywords": 0,
+            "illegal_harmful_keywords": 0,
+            "drugs_substances_keywords": 0,
+            "adult_content_keywords": 0
+        }
         
-        # Recommandations basées sur la sécurité
-        if total_threats > 10:
-            recommendations.append({
-                "priority": "HIGH",
-                "category": "SECURITY",
-                "title": "Niveau de menaces critique",
-                "description": f"{total_threats} menaces de sécurité détectées",
-                "action_items": [
-                    "Activer le mode de sécurité renforcée",
-                    "Examiner les logs de sécurité",
-                    "Considérer le blocage des utilisateurs suspects"
-                ],
-                "impact": "Réduction des risques de sécurité",
-                "timeline": "Immédiat"
-            })
-        elif total_threats > 5:
-            recommendations.append({
-                "priority": "MEDIUM",
-                "category": "SECURITY",
-                "title": "Surveillance sécurité recommandée",
-                "description": f"{total_threats} menaces détectées",
-                "action_items": [
-                    "Surveiller l'évolution des menaces",
-                    "Réviser les filtres de sécurité"
-                ],
-                "impact": "Prévention des incidents",
-                "timeline": "24 heures"
-            })
+        advanced_metrics = {
+            "multi_vector_attacks": 0,
+            "high_severity_threats": 0,
+            "novel_attack_patterns": 0,
+            "repeated_offenders": 0
+        }
         
-        # Recommandations basées sur la performance
-        if avg_latency > 5.0:
-            recommendations.append({
-                "priority": "MEDIUM",
-                "category": "PERFORMANCE",
-                "title": "Latence élevée détectée",
-                "description": f"Latence moyenne: {avg_latency:.2f}s",
-                "action_items": [
-                    "Analyser les goulots d'étranglement",
-                    "Optimiser la configuration des modèles",
-                    "Considérer la mise en cache"
-                ],
-                "impact": "Amélioration de l'expérience utilisateur",
-                "timeline": "1-2 semaines"
-            })
+        # Populate from threat_breakdown
+        for category, count in threat_breakdown.items():
+            if category in main_categories:
+                main_categories[category] = count
+            elif category in keyword_categories:
+                keyword_categories[category] = count
+            elif category in advanced_metrics:
+                advanced_metrics[category] = count
         
-        # Recommandations basées on les anomalies
-        if anomalies_count > 0:
-            recommendations.append({
-                "priority": "MEDIUM",
-                "category": "MONITORING",
-                "title": f"{anomalies_count} anomalie(s) détectée(s)",
-                "description": "Patterns d'usage inhabituels identifiés",
-                "action_items": [
-                    "Investiguer les anomalies",
-                    "Vérifier les comptes utilisateurs",
-                    "Ajuster les seuils d'alerte"
-                ],
-                "impact": "Meilleure compréhension des patterns",
-                "timeline": "3-5 jours"
-            })
+        # Calculate totals and percentages
+        total_main_threats = sum(main_categories.values())
+        total_keyword_threats = sum(keyword_categories.values())
         
-        # Si pas d'anomalies particulières, recommandations générales
-        if not recommendations:
-            recommendations.append({
-                "priority": "LOW",
-                "category": "OPTIMIZATION",
-                "title": "Système fonctionnant normalement",
-                "description": "Aucun problème critique détecté",
-                "action_items": [
-                    "Continuer la surveillance",
-                    "Réviser les métriques mensuelles",
-                    "Planifier les optimisations futures"
-                ],
-                "impact": "Maintenance préventive",
-                "timeline": "Mensuel"
-            })
-        
-        summary = f"Analyse de {total_requests} requêtes. "
-        if total_threats > 0:
-            summary += f"{total_threats} menaces détectées. "
-        if avg_latency > 2.0:
-            summary += f"Latence: {avg_latency:.2f}s. "
-        if anomalies_count > 0:
-            summary += f"{anomalies_count} anomalies identifiées."
-        
-        return {
-            "summary": summary,
-            "recommendations": recommendations,
-            "metadata": {
-                "generated_at": datetime.now().isoformat(),
-                "data_period": {
-                    "security_threats": total_threats,
-                    "total_requests": total_requests,
-                    "anomalies_count": anomalies_count
-                },
-                "analysis_version": "fallback-1.0"
+        enhanced_breakdown = {
+            "main_threat_categories": {
+                "data": main_categories,
+                "total": total_main_threats,
+                "top_3": sorted(main_categories.items(), key=lambda x: x[1], reverse=True)[:3]
+            },
+            "keyword_categories": {
+                "data": keyword_categories,
+                "total": total_keyword_threats,
+                "top_3": sorted(keyword_categories.items(), key=lambda x: x[1], reverse=True)[:3]
+            },
+            "advanced_metrics": advanced_metrics,
+            "threat_distribution": {
+                "main_threats_percentage": (total_main_threats / max(total_main_threats + total_keyword_threats, 1)) * 100,
+                "keyword_threats_percentage": (total_keyword_threats / max(total_main_threats + total_keyword_threats, 1)) * 100
+            },
+            "risk_indicators": {
+                "critical_risk": advanced_metrics["high_severity_threats"] > 10,
+                "sophisticated_attacks": advanced_metrics["multi_vector_attacks"] > 5,
+                "persistent_threats": advanced_metrics["repeated_offenders"] > 3
             }
         }
+        
+        return enhanced_breakdown
+    
+    def _extract_keyword_breakdown_for_frontend(self, enhanced_breakdown: Dict) -> Dict:
+        """
+        Extract keyword breakdown in a format the frontend expects - ONLY REAL DATA
+        """
+        try:
+            keyword_categories = enhanced_breakdown.get("keyword_categories", {})
+            
+            # Only return real data from database - no mock data
+            data = keyword_categories.get("data", {}) if keyword_categories else {}
+            
+            return {
+                "data": data,
+                "total_detections": sum(data.values()),
+                "categories_detected": len([k for k, v in data.items() if v > 0])
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error extracting keyword breakdown: {e}")
+            return {
+                "data": {},
+                "total_detections": 0,
+                "categories_detected": 0
+            }

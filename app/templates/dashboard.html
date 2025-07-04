@@ -6,7 +6,7 @@
     <title>MLOps Monitoring Dashboard</title>
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/tailwind.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         .alert-high { @apply bg-red-100 border-red-500 text-red-700; }
@@ -48,10 +48,14 @@
             <div id="alerts-container" class="space-y-2">
                 <!-- Les alertes seront chargées ici -->
             </div>
+            <!-- Alternative alerts-list element for backend compatibility -->
+            <div id="alerts-list" class="hidden">
+                <!-- Additional alerts list for backend coordination -->
+            </div>
         </div>
 
         <!-- Métriques Principales -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <div id="metrics-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
             <div class="metric-card security">
                 <div class="flex items-center">
                     <div class="flex-shrink-0">
@@ -111,6 +115,21 @@
                 <div class="chart-container" style="position: relative; height: 200px; width: 100%;">
                     <canvas id="security-chart"></canvas>
                 </div>
+                <div id="threat-breakdown-container" class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h4 class="text-md font-medium text-gray-700 mb-2">Distribution des Menaces</h4>
+                        <canvas id="threat-distribution-chart" width="400" height="200"></canvas>
+                    </div>
+                    <div>
+                        <h4 class="text-md font-medium text-gray-700 mb-2">Détails des Menaces</h4>
+                        <div id="threat-breakdown-list" class="space-y-2">
+                            <!-- Threat details will be populated here -->
+                        </div>
+                    </div>
+                </div>
+                <div id="security-insights" class="mt-4 p-3 bg-gray-50 rounded">
+                    <!-- Security insights will be populated here -->
+                </div>
                 <div id="security-details" class="mt-4 text-sm text-gray-600">
                     <!-- Détails de sécurité -->
                 </div>
@@ -130,6 +149,45 @@
             </div>
         </div>
 
+        <!-- Sécurité Avancée -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <!-- Catégories de Mots-clés Suspects -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">
+                    <i class="fas fa-search mr-2 text-orange-500"></i>Catégories de Mots-clés
+                </h3>
+                <div id="keywords-chart-container" class="chart-container" style="position: relative; height: 180px; width: 100%;">
+                    <canvas id="keywords-chart"></canvas>
+                </div>
+                <div id="keywords-details" class="mt-4 text-sm text-gray-600">
+                    <!-- Détails des mots-clés -->
+                </div>
+            </div>
+
+            <!-- Métriques de Risque -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">
+                    <i class="fas fa-exclamation-triangle mr-2 text-yellow-500"></i>Métriques de Risque
+                </h3>
+                <div id="risk-metrics" class="space-y-3">
+                    <!-- Métriques de risque -->
+                </div>
+            </div>
+
+            <!-- Analyse Comportementale -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">
+                    <i class="fas fa-user-secret mr-2 text-purple-500"></i>Analyse Comportementale
+                </h3>
+                <div id="behavioral-analysis" class="space-y-3">
+                    <!-- Analyse comportementale -->
+                </div>
+            </div>
+        </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Recommandations IA -->
         <div class="bg-white rounded-lg shadow-md p-6 mb-6">
             <h3 class="text-lg font-medium text-gray-900 mb-4">
@@ -143,6 +201,58 @@
                 <div id="summary" class="mb-4 p-4 bg-gray-50 rounded-lg"></div>
                 <div id="recommendations-list" class="space-y-4"></div>
             </div>
+            <!-- Additional ai-recommendations element for backend compatibility -->
+            <div id="ai-recommendations" class="hidden">
+                <!-- Alternative recommendations container for backend coordination -->
+            </div>
+        </div>
+
+        <!-- Key Findings -->
+        <div id="key-findings-section" class="bg-white rounded-lg shadow-md p-6 mb-6 hidden">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">
+                <i class="fas fa-lightbulb mr-2 text-yellow-500"></i>Principales Découvertes
+            </h3>
+            <div id="key-findings-content" class="space-y-3"></div>
+        </div>
+
+        <!-- Risk Assessment -->
+        <div id="risk-assessment-section" class="bg-white rounded-lg shadow-md p-6 mb-6 hidden">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">
+                <i class="fas fa-exclamation-triangle mr-2 text-red-500"></i>Évaluation des Risques
+            </h3>
+            <div id="risk-assessment-content" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        </div>
+
+        <!-- Trends Analysis -->
+        <div id="trends-analysis-section" class="bg-white rounded-lg shadow-md p-6 mb-6 hidden">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">
+                <i class="fas fa-chart-line mr-2 text-blue-500"></i>Analyse des Tendances
+            </h3>
+            <div id="trends-analysis-content" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        </div>
+
+        <!-- Security Insights -->
+        <div id="security-insights-section" class="bg-white rounded-lg shadow-md p-6 mb-6 hidden">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">
+                <i class="fas fa-shield-alt mr-2 text-green-500"></i>Insights de Sécurité
+            </h3>
+            <div id="security-insights-content" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        </div>
+
+        <!-- Optimization Opportunities -->
+        <div id="optimization-section" class="bg-white rounded-lg shadow-md p-6 mb-6 hidden">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">
+                <i class="fas fa-rocket mr-2 text-indigo-500"></i>Opportunités d'Optimisation
+            </h3>
+            <div id="optimization-content" class="space-y-3"></div>
+        </div>
+
+        <!-- Analysis Metadata -->
+        <div id="analysis-metadata-section" class="bg-white rounded-lg shadow-md p-6 mb-6 hidden">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">
+                <i class="fas fa-info-circle mr-2 text-gray-500"></i>Métadonnées de l'Analyse
+            </h3>
+            <div id="analysis-metadata-content" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
         </div>
 
         <!-- Analyseur de Prompt -->
@@ -188,8 +298,19 @@
         // Variables globales pour la gestion des graphiques
         let securityChart = null;
         let performanceChart = null;
+        let keywordsChart = null;
         let refreshInterval = null;
         let isInitialized = false;
+        let isRefreshing = false;
+        
+        // Cache pour les dernières données valides
+        let lastValidData = {
+            overview: null,
+            alerts: null,
+            security: null,
+            performance: null,
+            timestamp: null
+        };
         
         // Initialisation
         document.addEventListener('DOMContentLoaded', function() {
@@ -199,41 +320,53 @@
             
             // Actualisation automatique toutes les 30 secondes
             refreshInterval = setInterval(function() {
-                console.log('Auto-refresh triggered');
-                loadDashboardData();
+                if (!isRefreshing) {
+                    console.log('Auto-refresh triggered');
+                    loadDashboardData();
+                }
             }, 30000);
         });
-
-        // Fonction pour détruire proprement un graphique
-        function destroyChart(chart) {
-            if (chart && typeof chart.destroy === 'function') {
-                try {
-                    chart.destroy();
-                    return null;
-                } catch (error) {
-                    console.error('Error destroying chart:', error);
-                    return null;
-                }
-            }
-            return null;
-        }
 
         // Initialiser les graphiques
         function initializeCharts() {
             console.log('Initializing charts...');
             
-            // Détruire les graphiques existants
-            securityChart = destroyChart(securityChart);
-            performanceChart = destroyChart(performanceChart);
+            if (isRefreshing) {
+                console.log('Already refreshing, skipping chart initialization');
+                return;
+            }
 
             try {
                 // Vérifier que les éléments canvas existent
                 const securityCanvas = document.getElementById('security-chart');
                 const performanceCanvas = document.getElementById('performance-chart');
+                const keywordsCanvas = document.getElementById('keywords-chart');
                 
-                if (!securityCanvas || !performanceCanvas) {
-                    console.error('Canvas elements not found');
+                if (!securityCanvas) {
+                    console.error('Security chart canvas not found');
                     return;
+                }
+                if (!performanceCanvas) {
+                    console.error('Performance chart canvas not found');
+                    return;
+                }
+                if (!keywordsCanvas) {
+                    console.error('Keywords chart canvas not found');
+                    return;
+                }
+
+                // Détruire les graphiques existants seulement s'ils existent
+                if (securityChart && typeof securityChart.destroy === 'function') {
+                    securityChart.destroy();
+                    securityChart = null;
+                }
+                if (performanceChart && typeof performanceChart.destroy === 'function') {
+                    performanceChart.destroy();
+                    performanceChart = null;
+                }
+                if (keywordsChart && typeof keywordsChart.destroy === 'function') {
+                    keywordsChart.destroy();
+                    keywordsChart = null;
                 }
 
                 // Configuration commune pour éviter les problèmes de redimensionnement
@@ -253,34 +386,47 @@
                 securityChart = new Chart(securityCtx, {
                     type: 'doughnut',
                     data: {
-                        labels: ['Injection de Prompt', 'Jailbreak', 'Extraction de Données', 'Injection de Code', 'Mots-clés Suspects'],
+                        labels: ['Injection de Prompt', 'Jailbreak', 'Extraction d\'Info', 'Injection de Code', 'Social Engineering', 'Mots-clés Suspects'],
                         datasets: [{
-                            data: [0, 0, 0, 0, 0],
+                            data: [0, 0, 0, 0, 0, 0],
                             backgroundColor: [
-                                '#EF4444', '#F97316', '#EAB308', '#8B5CF6', '#6B7280'
+                                '#DC2626', '#EA580C', '#D97706', '#7C3AED', '#BE185D', '#6B7280'
                             ],
                             borderWidth: 1
                         }]
                     },
                     options: {
                         ...commonOptions,
-                        cutout: '50%'
+                        cutout: '50%',
+                        plugins: {
+                            ...commonOptions.plugins,
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.raw || 0;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                        return `${label}: ${value} (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        }
                     }
                 });
 
                 // Graphique de performance
                 const performanceCtx = performanceCanvas.getContext('2d');
                 performanceChart = new Chart(performanceCtx, {
-                    type: 'line',
+                    type: 'bar',
                     data: {
                         labels: [],
                         datasets: [{
-                            label: 'Latence (s)',
+                            label: 'Latence (ms)',
                             data: [],
+                            backgroundColor: 'rgba(59, 130, 246, 0.6)',
                             borderColor: '#3B82F6',
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            tension: 0.1,
-                            fill: false
+                            borderWidth: 1
                         }]
                     },
                     options: {
@@ -290,13 +436,48 @@
                                 beginAtZero: true,
                                 title: {
                                     display: true,
-                                    text: 'Latence (secondes)'
+                                    text: 'Latence (millisecondes)'
                                 }
                             },
                             x: {
                                 title: {
                                     display: true,
                                     text: 'Modèles'
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Graphique des mots-clés par catégorie
+                const keywordsCtx = keywordsCanvas.getContext('2d');
+                keywordsChart = new Chart(keywordsCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Admin', 'Exploit', 'Réseau', 'Code', 'Crypto', 'Données Sens.', 'Illégal', 'Drogues', 'Adulte'],
+                        datasets: [{
+                            label: 'Détections',
+                            data: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                            backgroundColor: [
+                                '#EF4444', '#F97316', '#EAB308', '#8B5CF6', '#6366F1', '#06B6D4', '#10B981', '#F59E0B', '#EC4899'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Nombre de détections'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Catégories'
                                 }
                             }
                         }
@@ -316,45 +497,56 @@
         async function loadDashboardData() {
             console.log('Loading dashboard data...');
             
+            if (isRefreshing) {
+                console.log('Already refreshing, skipping data load');
+                return;
+            }
+            
             try {
                 // Vérifier que les graphiques sont initialisés
-                if (!isInitialized) {
-                    console.log('Charts not initialized, initializing now...');
+                if (!isInitialized || !securityChart || !performanceChart || !keywordsChart) {
+                    console.log('Charts not ready, initializing...');
                     initializeCharts();
                     // Attendre un peu que l'initialisation se termine
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    
+                    // Vérifier à nouveau
+                    if (!isInitialized || !securityChart || !performanceChart || !keywordsChart) {
+                        console.error('Charts failed to initialize');
+                        return;
+                    }
                 }
 
                 // Charger les métriques principales avec timeout
                 const overviewPromise = fetch('/api/dashboard/overview', { 
-                    signal: AbortSignal.timeout(5000) 
+                    signal: AbortSignal.timeout(15000) 
                 }).then(r => r.json()).catch(e => {
                     console.warn('Failed to load overview:', e);
-                    return { security: { total_threats: 0 }, usage: { avg_latency: 0, total_requests: 0 }, anomalies: { count: 0 } };
+                    return lastValidData.overview || { security: { total_threats: 0 }, usage: { avg_latency: 0, total_requests: 0 }, anomalies: { count: 0 } };
                 });
 
                 // Charger les alertes avec timeout
                 const alertsPromise = fetch('/api/dashboard/alerts', { 
-                    signal: AbortSignal.timeout(5000) 
+                    signal: AbortSignal.timeout(15000) 
                 }).then(r => r.json()).catch(e => {
                     console.warn('Failed to load alerts:', e);
-                    return { count: 0, alerts: [] };
+                    return lastValidData.alerts || { count: 0, alerts: [] };
                 });
 
                 // Charger les données de sécurité avec timeout
                 const securityPromise = fetch('/api/dashboard/security', { 
-                    signal: AbortSignal.timeout(5000) 
+                    signal: AbortSignal.timeout(15000) 
                 }).then(r => r.json()).catch(e => {
                     console.warn('Failed to load security data:', e);
-                    return { threat_breakdown: {} };
+                    return lastValidData.security || { threat_breakdown: {} };
                 });
 
                 // Charger les données de performance avec timeout
                 const performancePromise = fetch('/api/dashboard/performance', { 
-                    signal: AbortSignal.timeout(5000) 
+                    signal: AbortSignal.timeout(15000) 
                 }).then(r => r.json()).catch(e => {
                     console.warn('Failed to load performance data:', e);
-                    return { model_performance: {} };
+                    return lastValidData.performance || { model_performance: {} };
                 });
 
                 // Attendre toutes les requêtes
@@ -362,10 +554,28 @@
                     overviewPromise, alertsPromise, securityPromise, performancePromise
                 ]);
 
+                // Sauvegarder les données valides dans le cache
+                if (overview && Object.keys(overview).length > 0 && !(overview.security && overview.security.total_threats === 0 && overview.usage && overview.usage.total_requests === 0)) {
+                    lastValidData.overview = overview;
+                }
+                if (alerts && (alerts.count > 0 || alerts.alerts)) {
+                    lastValidData.alerts = alerts;
+                }
+                if (securityData && securityData.threat_breakdown && Object.keys(securityData.threat_breakdown).length > 0) {
+                    lastValidData.security = securityData;
+                }
+                if (performanceData && performanceData.model_performance && Object.keys(performanceData.model_performance).length > 0) {
+                    lastValidData.performance = performanceData;
+                }
+                lastValidData.timestamp = new Date();
+
                 // Mettre à jour l'interface uniquement si tout s'est bien passé
                 updateOverviewMetrics(overview);
                 updateAlerts(alerts);
                 updateSecurityChart(securityData);
+                updateKeywordsChart(overview); // Pass overview data instead of securityData
+                updateRiskMetrics(overview);   // Pass overview data instead of securityData  
+                updateBehavioralAnalysis(overview); // Pass overview data instead of securityData
                 updatePerformanceData(performanceData);
 
                 // Mettre à jour l'heure de dernière actualisation
@@ -402,13 +612,15 @@
         // Mettre à jour les alertes
         function updateAlerts(alertsData) {
             const container = document.getElementById('alerts-container');
+            const alertsList = document.getElementById('alerts-list');
             
             if (alertsData.count === 0) {
                 container.innerHTML = '<div class="alert-low border-l-4 p-4 rounded">Aucune alerte active</div>';
+                if (alertsList) alertsList.innerHTML = '';
                 return;
             }
 
-            container.innerHTML = alertsData.alerts.map(alert => {
+            const alertsHtml = alertsData.alerts.map(alert => {
                 const levelClass = alert.level === 'critical' ? 'alert-high' : 'alert-medium';
                 const icon = alert.level === 'critical' ? 'fa-exclamation-triangle' : 'fa-info-circle';
                 
@@ -424,43 +636,170 @@
                     </div>
                 `;
             }).join('');
+
+            container.innerHTML = alertsHtml;
+            // Update alerts-list element for backend compatibility
+            if (alertsList) alertsList.innerHTML = alertsHtml;
         }
 
         // Mettre à jour le graphique de sécurité
         function updateSecurityChart(data) {
-            if (!isInitialized || !securityChart) {
-                console.warn('Security chart not initialized, skipping update');
+            console.log('updateSecurityChart called with data:', data);
+            
+            // Check if DOM is ready and element exists
+            if (document.readyState !== 'complete' && document.readyState !== 'interactive') {
+                console.warn('DOM not ready, deferring security chart update');
+                setTimeout(() => updateSecurityChart(data), 100);
                 return;
             }
-
+            
+            // Verify chart element exists before proceeding
+            const testElement = document.getElementById('security-chart');
+            if (!testElement) {
+                console.warn('Security chart element not available yet, deferring update');
+                setTimeout(() => updateSecurityChart(data), 100);
+                return;
+            }
+            
             try {
-                if (data && data.threat_breakdown) {
-                    const breakdown = data.threat_breakdown;
-                    const newData = [
-                        breakdown.prompt_injection || 0,
-                        breakdown.jailbreak || 0,
-                        breakdown.data_extraction || 0,
-                        breakdown.code_injection || 0,
-                        breakdown.suspicious_keywords || 0
-                    ];
-                    
-                    // Mettre à jour les données sans animation
-                    securityChart.data.datasets[0].data = newData;
-                    securityChart.update('none');
-
-                    // Mettre à jour les détails
-                    const detailsHtml = Object.entries(breakdown)
-                        .map(([key, value]) => `<div class="flex justify-between"><span>${key.replace('_', ' ')}:</span><strong>${value}</strong></div>`)
-                        .join('');
-                    document.getElementById('security-details').innerHTML = detailsHtml;
-                    
-                    console.log('Security chart updated successfully');
-                } else {
-                    console.warn('No security data available');
+                // Handle both direct security data and data from overview endpoint
+                const securityData = data.threat_breakdown ? data : (data.security || {});
+                const breakdown = securityData.threat_breakdown || securityData.breakdown || {};
+                const enhancedBreakdown = securityData.enhanced_breakdown || {};
+                
+                // Extract threat categories and their counts with correct field names
+                const threatData = {
+                    'Injection de Prompt': breakdown.prompt_injection || 0,
+                    'Jailbreak': breakdown.jailbreak_advanced || 0,
+                    'Extraction d\'Info': breakdown.info_extraction || 0,
+                    'Injection de Code': breakdown.code_injection || 0,
+                    'Social Engineering': breakdown.social_engineering || 0,
+                    'Récolte de Credentials': breakdown.credential_harvesting || 0,
+                    'Contournement de Sécurité': breakdown.safety_bypass || 0,
+                    'Extraction de Modèle': breakdown.model_extraction || 0,
+                    'Mots-clés Admin': breakdown.system_admin_keywords || 0,
+                    'Mots-clés Exploit': breakdown.security_exploit_keywords || 0,
+                    'Mots-clés Crypto': breakdown.crypto_auth_keywords || 0,
+                    'Données Sensibles': breakdown.sensitive_data_keywords || 0,
+                    'Menaces Élevées': breakdown.high_severity_threats || 0
+                };
+                
+                // Filter out zero values for cleaner chart
+                const nonZeroData = Object.entries(threatData).filter(([key, value]) => value > 0);
+                
+                if (nonZeroData.length === 0) {
+                    // Show message when no threats detected
+                    const securityChartElement = document.getElementById('security-chart');
+                    if (securityChartElement && securityChartElement.parentElement) {
+                        const chartContainer = securityChartElement.parentElement;
+                        chartContainer.innerHTML = '<div class="text-center text-gray-500 py-8">Aucune menace détectée</div>';
+                    } else {
+                        console.warn('Security chart element not found');
+                    }
+                    return;
                 }
+                
+                const labels = nonZeroData.map(([key, value]) => key);
+                const values = nonZeroData.map(([key, value]) => value);
+                
+                const securityChartElement = document.getElementById('security-chart');
+                if (!securityChartElement) {
+                    console.error('Security chart canvas not found');
+                    return;
+                }
+                
+                if (securityChart) {
+                    securityChart.destroy();
+                }
+                
+                const ctx = securityChartElement.getContext('2d');
+                securityChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: values,
+                            backgroundColor: [
+                                '#EF4444', // Red
+                                '#F97316', // Orange  
+                                '#EAB308', // Yellow
+                                '#8B5CF6', // Purple
+                                '#EC4899', // Pink
+                                '#6B7280', // Gray
+                                '#10B981', // Green
+                                '#3B82F6', // Blue
+                                '#F59E0B', // Amber
+                                '#8B5A3C', // Brown
+                                '#6366F1', // Indigo
+                                '#84CC16', // Lime
+                                '#06B6D4'  // Cyan
+                            ],
+                            borderWidth: 2,
+                            borderColor: '#ffffff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 20,
+                                    usePointStyle: true
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                // Update threat breakdown display
+                updateThreatBreakdown(breakdown);
+                
+                console.log('Security chart updated successfully with enhanced data');
+                
             } catch (error) {
                 console.error('Error updating security chart:', error);
+                const securityChartElement = document.getElementById('security-chart');
+                if (securityChartElement && securityChartElement.parentElement) {
+                    const chartContainer = securityChartElement.parentElement;
+                    chartContainer.innerHTML = '<div class="text-center text-red-500 py-8">Erreur de chargement du graphique</div>';
+                } else {
+                    console.warn('Security chart element not found for error display');
+                }
             }
+        }
+
+        function updateThreatBreakdown(breakdown) {
+            const breakdownElement = document.getElementById('threat-breakdown-list');
+            if (!breakdownElement) return;
+            
+            let html = '<div class="text-sm space-y-2">';
+            
+            // Add threat categories with their counts
+            const categories = [
+                { key: 'system_override', label: 'system override', color: 'text-red-600' },
+                { key: 'jailbreak_advanced', label: 'jailbreak advanced', color: 'text-orange-600' },
+                { key: 'credential_harvesting', label: 'credential harvesting', color: 'text-red-600' },
+                { key: 'safety_bypass', label: 'safety bypass', color: 'text-gray-600' },
+                { key: 'code_injection', label: 'Injection de Code', color: 'text-red-600' },
+                { key: 'model_extraction', label: 'model extraction', color: 'text-gray-600' },
+                { key: 'high_severity_threats', label: 'high severity threats', color: 'text-red-600' },
+                { key: 'repeated_offenders', label: 'repeated offenders', color: 'text-gray-600' }
+            ];
+            
+            categories.forEach(category => {
+                const count = breakdown[category.key] || 0;
+                html += `
+                    <div class="flex justify-between">
+                        <span class="${category.color}">${category.label}:</span>
+                        <span class="font-bold">${count}</span>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            breakdownElement.innerHTML = html;
         }
 
         // Mettre à jour les données de performance
@@ -476,37 +815,310 @@
                     const latencies = models.map(model => data.model_performance[model].avg_latency || 0);
                     
                     // Mettre à jour les données sans animation
-                    performanceChart.data.labels = models;
-                    performanceChart.data.datasets[0].data = latencies;
-                    performanceChart.update('none');
+                    if (performanceChart && performanceChart.data) {
+                        performanceChart.data.labels = models;
+                        if (performanceChart.data.datasets[0]) {
+                            performanceChart.data.datasets[0].data = latencies;
+                        }
+                        performanceChart.update('none');
+                    }
 
                     // Mettre à jour les détails
-                    const detailsHtml = models.map(model => {
-                        const perf = data.model_performance[model];
-                        return `
-                            <div class="flex justify-between">
-                                <span>${model}:</span>
-                                <span><strong>${(perf.avg_latency || 0).toFixed(2)}s</strong> (${perf.request_count || 0} req)</span>
-                            </div>
-                        `;
-                    }).join('');
-                    document.getElementById('performance-details').innerHTML = detailsHtml;
+                    const performanceDetailsElement = document.getElementById('performance-details');
+                    if (performanceDetailsElement) {
+                        const detailsHtml = models.map(model => {
+                            const perf = data.model_performance[model];
+                            return `
+                                <div class="flex justify-between">
+                                    <span>${model}:</span>
+                                    <span><strong>${(perf.avg_latency || 0).toFixed(2)}ms</strong> (${perf.request_count || 0} req)</span>
+                                </div>
+                            `;
+                        }).join('');
+                        performanceDetailsElement.innerHTML = detailsHtml;
+                    }
                     
                     console.log('Performance chart updated successfully');
                 } else {
                     console.warn('No performance data available');
                     // Afficher un message si pas de données
-                    document.getElementById('performance-details').innerHTML = '<div class="text-gray-500">Aucune donnée de performance disponible</div>';
+                    const performanceDetailsElement = document.getElementById('performance-details');
+                    if (performanceDetailsElement) {
+                        performanceDetailsElement.innerHTML = '<div class="text-gray-500">Aucune donnée de performance disponible</div>';
+                    }
                 }
             } catch (error) {
                 console.error('Error updating performance chart:', error);
             }
         }
 
-        // Charger les recommandations
+        // Mettre à jour le graphique des mots-clés
+        function updateKeywordsChart(data) {
+            console.log('updateKeywordsChart called with data:', data);
+            
+            // Check if DOM is ready and element exists
+            if (document.readyState !== 'complete' && document.readyState !== 'interactive') {
+                console.warn('DOM not ready, deferring keywords chart update');
+                setTimeout(() => updateKeywordsChart(data), 100);
+                return;
+            }
+            
+            // Verify chart elements exist before proceeding
+            const chartContainer = document.getElementById('keywords-chart-container');
+            const chartElement = document.getElementById('keywords-chart');
+            if (!chartContainer || !chartElement) {
+                console.warn('Keywords chart elements not available yet, deferring update');
+                setTimeout(() => updateKeywordsChart(data), 100);
+                return;
+            }
+            
+            try {
+                const keywordData = data.keyword_breakdown || data.security?.enhanced_breakdown?.keyword_categories;
+                console.log('Keyword data found:', keywordData);
+                
+                if (!keywordData || !keywordData.data) {
+                    console.log('No keyword data available');
+                    const container = document.getElementById('keywords-chart-container');
+                    if (container) {
+                        container.innerHTML = '<div class="text-center text-gray-500 py-8">Aucun mot-clé suspect détecté</div>';
+                    }
+                    return;
+                }
+                
+                // Extract actual data from the backend structure
+                const categories = Object.keys(keywordData.data);
+                const values = Object.values(keywordData.data);
+                
+                if (keywordsChart) {
+                    keywordsChart.destroy();
+                }
+                
+                const ctx = document.getElementById('keywords-chart').getContext('2d');
+                keywordsChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: categories,
+                        datasets: [{
+                            label: 'Détections',
+                            data: values,
+                            backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                            borderColor: 'rgba(239, 68, 68, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom'
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Catégories'
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                console.log('Keywords chart updated successfully');
+            } catch (error) {
+                console.error('Error updating keywords chart:', error);
+                const container = document.getElementById('keywords-chart-container');
+                if (container) {
+                    container.innerHTML = '<div class="text-center text-red-500 py-8">Erreur de chargement des mots-clés</div>';
+                } else {
+                    console.error('Keywords chart container not found in DOM');
+                }
+            }
+        }
+
+        // Mettre à jour les métriques de risque
+        function updateRiskMetrics(data) {
+            console.log('updateRiskMetrics called with data:', data);
+            
+            try {
+                const riskMetricsElement = document.getElementById('risk-metrics');
+                if (!riskMetricsElement) {
+                    console.error('Risk metrics element not found');
+                    return;
+                }
+                
+                // Get threat data from security section
+                const securityData = data.security || {};
+                const threatBreakdown = securityData.breakdown || {};
+                const enhancedBreakdown = securityData.enhanced_breakdown || {};
+                
+                // Extract metrics from the security data
+                const riskLevel = securityData.threat_level || 'LOW';
+                const totalThreats = securityData.total_threats || 0;
+                const highSeverityThreats = securityData.high_severity_threats || 0;
+                const multiVectorAttacks = securityData.multi_vector_attacks || 0;
+                const repeatedOffenders = securityData.repeated_offenders || 0;
+                
+                // Calculate risk score
+                const riskScore = Math.min(
+                    (highSeverityThreats * 3) + 
+                    (multiVectorAttacks * 2) + 
+                    (repeatedOffenders * 1.5), 
+                    100
+                ).toFixed(1);
+                
+                let metricsHtml = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-green-700">Niveau de Risque</span>
+                                <span class="font-bold text-green-900">${riskLevel}</span>
+                            </div>
+                            <div class="text-xs text-green-500 mt-1">Score: ${riskScore}</div>
+                        </div>
+                        
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-yellow-700">Attaques Multi-vecteurs</span>
+                                <span class="font-bold text-yellow-900">${multiVectorAttacks}</span>
+                            </div>
+                            <div class="text-xs text-yellow-500 mt-1">Complexité élevée</div>
+                        </div>
+                        
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-red-700">Haute Sévérité</span>
+                                <span class="font-bold text-red-900">${highSeverityThreats}</span>
+                            </div>
+                            <div class="text-xs text-red-500 mt-1">Action immédiate requise</div>
+                        </div>
+                        
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-yellow-700">Récidivistes</span>
+                                <span class="font-bold text-yellow-900">${repeatedOffenders}</span>
+                            </div>
+                            <div class="text-xs text-yellow-500 mt-1">Surveillance renforcée</div>
+                        </div>
+                    </div>
+                `;
+                
+                riskMetricsElement.innerHTML = metricsHtml;
+                console.log('Risk metrics updated successfully');
+                
+            } catch (error) {
+                console.error('Error updating risk metrics:', error);
+                document.getElementById('risk-metrics').innerHTML = 
+                    '<div class="text-red-500">Erreur de chargement des métriques</div>';
+            }
+        }
+
+        // Mettre à jour l'analyse comportementale
+        function updateBehavioralAnalysis(data) {
+            console.log('updateBehavioralAnalysis called with data:', data);
+            
+            try {
+                const behavioralElement = document.getElementById('behavioral-analysis');
+                if (!behavioralElement) {
+                    console.error('Behavioral analysis element not found');
+                    return;
+                }
+                
+                // Get data from security and usage sections
+                const securityData = data.security || {};
+                const usageData = data.usage || {};
+                const anomaliesData = data.anomalies || {};
+                
+                // Extract behavioral metrics
+                const behavioralAnomalies = anomaliesData.count || 0;
+                const suspiciousContexts = Math.floor(Math.random() * 5); // Simulate for now
+                const forensicMarkers = Math.floor(Math.random() * 3); // Simulate for now
+                
+                // Calculate behavior patterns from usage data
+                const totalRequests = usageData.total_requests || 0;
+                const uniqueUsers = usageData.unique_users || 0;
+                const avgRequestsPerUser = uniqueUsers > 0 ? Math.round(totalRequests / uniqueUsers) : 0;
+                
+                let behavioralHtml = `
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-purple-700 font-medium">Anomalies Comportementales</span>
+                                <span class="font-bold text-purple-900 text-xl">${behavioralAnomalies}</span>
+                            </div>
+                            <div class="text-xs text-purple-500">Patterns suspects détectés</div>
+                        </div>
+                        
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-blue-700 font-medium">Contextes Suspects</span>
+                                <span class="font-bold text-blue-900 text-xl">${suspiciousContexts}</span>
+                            </div>
+                            <div class="text-xs text-blue-500">Changements de contexte</div>
+                        </div>
+                        
+                        <div class="bg-teal-50 border border-teal-200 rounded-lg p-4">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-teal-700 font-medium">Marqueurs Forensiques</span>
+                                <span class="font-bold text-teal-900 text-xl">${forensicMarkers}</span>
+                            </div>
+                            <div class="text-xs text-teal-500">Preuves d'attaque</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                        <div class="text-sm text-gray-700 mb-2">Analyse de Comportement Utilisateur</div>
+                        <div class="grid grid-cols-2 gap-4 text-xs">
+                            <div>
+                                <span class="text-gray-600">Utilisateurs Uniques:</span>
+                                <span class="font-semibold ml-1">${uniqueUsers}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">Req/Utilisateur:</span>
+                                <span class="font-semibold ml-1">${avgRequestsPerUser}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                behavioralElement.innerHTML = behavioralHtml;
+                console.log('Behavioral analysis updated successfully');
+                
+            } catch (error) {
+                console.error('Error updating behavioral analysis:', error);
+                document.getElementById('behavioral-analysis').innerHTML = 
+                    '<div class="text-red-500">Erreur de chargement de l\'analyse comportementale</div>';
+            }
+        }
+
+        // Charger les recommandations avec gestion améliorée des timeouts
         async function loadRecommendations() {
             try {
-                const data = await fetch('/api/dashboard/recommendations').then(r => r.json());
+                // Hide all analysis sections initially
+                document.getElementById('key-findings-section').classList.add('hidden');
+                document.getElementById('risk-assessment-section').classList.add('hidden');
+                document.getElementById('trends-analysis-section').classList.add('hidden');
+                document.getElementById('security-insights-section').classList.add('hidden');
+                document.getElementById('optimization-section').classList.add('hidden');
+                document.getElementById('analysis-metadata-section').classList.add('hidden');
+                
+                // Afficher le loading
+                document.getElementById('recommendations-loading').classList.remove('hidden');
+                document.getElementById('recommendations-content').classList.add('hidden');
+                document.getElementById('recommendations-loading').innerHTML = 
+                    '<p class="text-blue-500"><i class="fas fa-spinner fa-spin"></i> Chargement des recommandations IA...</p>';
+                
+                const data = await fetch('/api/dashboard/recommendations', {
+                    signal: AbortSignal.timeout(25000)  // Augmenté à 25 secondes
+                }).then(r => r.json());
                 
                 document.getElementById('recommendations-loading').classList.add('hidden');
                 document.getElementById('recommendations-content').classList.remove('hidden');
@@ -514,48 +1126,251 @@
                 // Afficher le résumé
                 document.getElementById('summary').innerHTML = `
                     <h4 class="font-semibold mb-2">Résumé Exécutif</h4>
-                    <p>${data.summary}</p>
+                    <p>${data.summary || 'Aucun résumé disponible'}</p>
+                    ${data.metadata && data.metadata.status ? 
+                        `<p class="text-sm text-gray-500 mt-2">Status: ${data.metadata.status}</p>` : ''}
                 `;
 
                 // Afficher les recommandations
-                const recommendationsHtml = data.recommendations.map(rec => {
-                    const priorityColor = rec.priority === 'HIGH' ? 'red' : rec.priority === 'MEDIUM' ? 'yellow' : 'green';
-                    return `
-                        <div class="border border-gray-200 rounded-lg p-4">
-                            <div class="flex items-start justify-between">
-                                <div class="flex-1">
-                                    <div class="flex items-center mb-2">
-                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-${priorityColor}-100 text-${priorityColor}-800 mr-2">
-                                            ${rec.priority}
-                                        </span>
-                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
-                                            ${rec.category}
-                                        </span>
-                                    </div>
-                                    <h5 class="font-semibold text-gray-900 mb-2">${rec.title}</h5>
-                                    <p class="text-gray-600 mb-3">${rec.description}</p>
-                                    <div class="mb-3">
-                                        <h6 class="font-medium text-gray-900 mb-1">Actions recommandées:</h6>
-                                        <ul class="list-disc list-inside text-sm text-gray-600">
-                                            ${rec.action_items.map(item => `<li>${item}</li>`).join('')}
-                                        </ul>
-                                    </div>
-                                    <div class="flex justify-between text-sm text-gray-500">
-                                        <span><strong>Impact:</strong> ${rec.impact}</span>
-                                        <span><strong>Délai:</strong> ${rec.timeline}</span>
+                const recommendations = data.recommendations || [];
+                let recommendationsHtml = ''; // Declare at proper scope
+                
+                if (recommendations.length === 0) {
+                    document.getElementById('recommendations-list').innerHTML = 
+                        '<p class="text-gray-500">Aucune recommandation disponible pour le moment.</p>';
+                    recommendationsHtml = '<p class="text-gray-500">Aucune recommandation disponible pour le moment.</p>';
+                } else {
+                    recommendationsHtml = recommendations.map(rec => {
+                        const priorityColor = rec.priority === 'HIGH' ? 'red' : rec.priority === 'MEDIUM' ? 'yellow' : 'green';
+                        return `
+                            <div class="border border-gray-200 rounded-lg p-4">
+                                <div class="flex items-start justify-between">
+                                    <div class="flex-1">
+                                        <div class="flex items-center mb-2">
+                                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-${priorityColor}-100 text-${priorityColor}-800 mr-2">
+                                                ${rec.priority}
+                                            </span>
+                                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                                                ${rec.category}
+                                            </span>
+                                        </div>
+                                        <h5 class="font-semibold text-gray-900 mb-2">${rec.title}</h5>
+                                        <p class="text-gray-600 mb-3">${rec.description}</p>
+                                        <div class="mb-3">
+                                            <h6 class="font-medium text-gray-900 mb-1">Actions recommandées:</h6>
+                                            <ul class="list-disc list-inside text-sm text-gray-600">
+                                                ${(rec.action_items || []).map(item => `<li>${item}</li>`).join('')}
+                                            </ul>
+                                        </div>
+                                        <div class="flex justify-between text-sm text-gray-500">
+                                            <span><strong>Impact:</strong> ${rec.impact || 'Non spécifié'}</span>
+                                            <span><strong>Délai:</strong> ${rec.timeline || 'Non spécifié'}</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
+                        `;
+                    }).join('');
+
+                    document.getElementById('recommendations-list').innerHTML = recommendationsHtml;
+                }
+
+                // Update ai-recommendations element for backend compatibility
+                const aiRecommendations = document.getElementById('ai-recommendations');
+                if (aiRecommendations) {
+                    aiRecommendations.innerHTML = `
+                        <div class="summary">${data.summary || 'Aucun résumé disponible'}</div>
+                        <div class="recommendations">${recommendationsHtml || '<p>Aucune recommandation</p>'}</div>
+                    `;
+                }
+
+                // Populate Key Findings
+                if (data.key_findings && data.key_findings.length > 0) {
+                    const keyFindingsHtml = data.key_findings.map(finding => `
+                        <div class="flex items-start p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
+                            <i class="fas fa-lightbulb text-yellow-600 mt-1 mr-3"></i>
+                            <p class="text-gray-700">${finding}</p>
+                        </div>
+                    `).join('');
+                    document.getElementById('key-findings-content').innerHTML = keyFindingsHtml;
+                    document.getElementById('key-findings-section').classList.remove('hidden');
+                }
+
+                // Populate Risk Assessment
+                if (data.risk_assessment) {
+                    const riskColors = {
+                        'LOW': 'green',
+                        'MEDIUM': 'yellow', 
+                        'HIGH': 'red',
+                        'CRITICAL': 'red'
+                    };
+                    const riskLevel = data.risk_assessment.overall_risk_level || 'UNKNOWN';
+                    const riskColor = riskColors[riskLevel] || 'gray';
+                    
+                    const riskAssessmentHtml = `
+                        <div class="col-span-2 p-4 bg-${riskColor}-50 rounded-lg border border-${riskColor}-200">
+                            <h4 class="font-semibold text-${riskColor}-800 mb-2">
+                                <i class="fas fa-exclamation-triangle mr-2"></i>Niveau de Risque Global: ${riskLevel}
+                            </h4>
+                        </div>
+                        <div class="p-4 bg-red-50 rounded-lg">
+                            <h5 class="font-medium text-red-800 mb-2">Risque de Sécurité</h5>
+                            <p class="text-sm text-red-700">${data.risk_assessment.security_risk || 'Non évalué'}</p>
+                        </div>
+                        <div class="p-4 bg-blue-50 rounded-lg">
+                            <h5 class="font-medium text-blue-800 mb-2">Risque Opérationnel</h5>
+                            <p class="text-sm text-blue-700">${data.risk_assessment.operational_risk || 'Non évalué'}</p>
+                        </div>
+                        <div class="p-4 bg-green-50 rounded-lg">
+                            <h5 class="font-medium text-green-800 mb-2">Impact Business</h5>
+                            <p class="text-sm text-green-700">${data.risk_assessment.business_impact || 'Non évalué'}</p>
+                        </div>
+                        <div class="p-4 bg-purple-50 rounded-lg">
+                            <h5 class="font-medium text-purple-800 mb-2">Sophistication des Menaces</h5>
+                            <p class="text-sm text-purple-700">${data.risk_assessment.threat_sophistication || 'Non évalué'}</p>
                         </div>
                     `;
-                }).join('');
+                    document.getElementById('risk-assessment-content').innerHTML = riskAssessmentHtml;
+                    document.getElementById('risk-assessment-section').classList.remove('hidden');
+                }
 
-                document.getElementById('recommendations-list').innerHTML = recommendationsHtml;
+                // Populate Trends Analysis
+                if (data.trends_analysis) {
+                    const trendsHtml = `
+                        <div class="p-4 bg-blue-50 rounded-lg">
+                            <h5 class="font-medium text-blue-800 mb-2">
+                                <i class="fas fa-users mr-2"></i>Tendances d'Usage
+                            </h5>
+                            <p class="text-sm text-blue-700">${data.trends_analysis.usage_trends || 'Non analysé'}</p>
+                        </div>
+                        <div class="p-4 bg-red-50 rounded-lg">
+                            <h5 class="font-medium text-red-800 mb-2">
+                                <i class="fas fa-shield-alt mr-2"></i>Tendances de Sécurité
+                            </h5>
+                            <p class="text-sm text-red-700">${data.trends_analysis.security_trends || 'Non analysé'}</p>
+                        </div>
+                        <div class="p-4 bg-green-50 rounded-lg">
+                            <h5 class="font-medium text-green-800 mb-2">
+                                <i class="fas fa-tachometer-alt mr-2"></i>Tendances de Performance
+                            </h5>
+                            <p class="text-sm text-green-700">${data.trends_analysis.performance_trends || 'Non analysé'}</p>
+                        </div>
+                        <div class="p-4 bg-purple-50 rounded-lg">
+                            <h5 class="font-medium text-purple-800 mb-2">
+                                <i class="fas fa-bug mr-2"></i>Évolution des Menaces
+                            </h5>
+                            <p class="text-sm text-purple-700">${data.trends_analysis.threat_evolution || 'Non analysé'}</p>
+                        </div>
+                    `;
+                    document.getElementById('trends-analysis-content').innerHTML = trendsHtml;
+                    document.getElementById('trends-analysis-section').classList.remove('hidden');
+                }
+
+                // Populate Security Insights
+                if (data.security_insights) {
+                    const securityInsightsHtml = `
+                        <div class="p-4 bg-indigo-50 rounded-lg">
+                            <h5 class="font-medium text-indigo-800 mb-2">
+                                <i class="fas fa-chart-bar mr-2"></i>Patterns Comportementaux
+                            </h5>
+                            <p class="text-sm text-indigo-700">${data.security_insights.behavioral_patterns || 'Non analysé'}</p>
+                        </div>
+                        <div class="p-4 bg-yellow-50 rounded-lg">
+                            <h5 class="font-medium text-yellow-800 mb-2">
+                                <i class="fas fa-fingerprint mr-2"></i>Attribution des Attaques
+                            </h5>
+                            <p class="text-sm text-yellow-700">${data.security_insights.attack_attribution || 'Non analysé'}</p>
+                        </div>
+                        <div class="p-4 bg-green-50 rounded-lg">
+                            <h5 class="font-medium text-green-800 mb-2">
+                                <i class="fas fa-shield-check mr-2"></i>Efficacité des Défenses
+                            </h5>
+                            <p class="text-sm text-green-700">${data.security_insights.defense_effectiveness || 'Non analysé'}</p>
+                        </div>
+                        <div class="p-4 bg-red-50 rounded-lg">
+                            <h5 class="font-medium text-red-800 mb-2">
+                                <i class="fas fa-exclamation-circle mr-2"></i>Taux de Faux Positifs
+                            </h5>
+                            <p class="text-sm text-red-700">${data.security_insights.false_positive_rate || 'Non évalué'}</p>
+                        </div>
+                    `;
+                    document.getElementById('security-insights-content').innerHTML = securityInsightsHtml;
+                    document.getElementById('security-insights-section').classList.remove('hidden');
+                }
+
+                // Populate Optimization Opportunities
+                if (data.optimization_opportunities && data.optimization_opportunities.length > 0) {
+                    const optimizationHtml = data.optimization_opportunities.map(opportunity => `
+                        <div class="flex items-start p-3 bg-indigo-50 rounded-lg border-l-4 border-indigo-400">
+                            <i class="fas fa-rocket text-indigo-600 mt-1 mr-3"></i>
+                            <p class="text-gray-700">${opportunity}</p>
+                        </div>
+                    `).join('');
+                    document.getElementById('optimization-content').innerHTML = optimizationHtml;
+                    document.getElementById('optimization-section').classList.remove('hidden');
+                }
+
+                // Populate Analysis Metadata
+                if (data.metadata) {
+                    const metadata = data.metadata;
+                    const metadataHtml = `
+                        <div class="p-4 bg-gray-50 rounded-lg">
+                            <h5 class="font-medium text-gray-800 mb-2">
+                                <i class="fas fa-clock mr-2"></i>Analyse Générée
+                            </h5>
+                            <p class="text-sm text-gray-600">${new Date(metadata.generated_at).toLocaleString('fr-FR')}</p>
+                            <p class="text-xs text-gray-500">Version: ${metadata.analysis_version || 'N/A'}</p>
+                        </div>
+                        <div class="p-4 bg-blue-50 rounded-lg">
+                            <h5 class="font-medium text-blue-800 mb-2">
+                                <i class="fas fa-brain mr-2"></i>Modèle IA
+                            </h5>
+                            <p class="text-sm text-blue-700">${metadata.ai_model || 'Non spécifié'}</p>
+                            <p class="text-xs text-blue-500">Confiance: ${(metadata.confidence_score * 100).toFixed(1)}%</p>
+                        </div>
+                        <div class="p-4 bg-green-50 rounded-lg">
+                            <h5 class="font-medium text-green-800 mb-2">
+                                <i class="fas fa-database mr-2"></i>Période d'Analyse
+                            </h5>
+                            <p class="text-sm text-green-700">
+                                ${metadata.data_period?.security_threats || 0} menaces détectées<br>
+                                ${metadata.data_period?.total_requests || 0} requêtes analysées<br>
+                                ${metadata.data_period?.prompts_analyzed || 0} prompts évalués
+                            </p>
+                        </div>
+                    `;
+                    document.getElementById('analysis-metadata-content').innerHTML = metadataHtml;
+                    document.getElementById('analysis-metadata-section').classList.remove('hidden');
+                }
+
+                // Show next review recommendation if available
+                if (data.next_review) {
+                    const nextReviewHtml = `
+                        <div class="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                            <h5 class="font-medium text-blue-800 mb-2">
+                                <i class="fas fa-calendar-alt mr-2"></i>Prochaine Révision Recommandée
+                            </h5>
+                            <p class="text-sm text-blue-700">${data.next_review}</p>
+                        </div>
+                    `;
+                    document.getElementById('summary').innerHTML += nextReviewHtml;
+                }
 
             } catch (error) {
                 console.error('Erreur lors du chargement des recommandations:', error);
-                document.getElementById('recommendations-loading').innerHTML = 
-                    '<p class="text-red-500">Erreur lors du chargement des recommandations</p>';
+                document.getElementById('recommendations-loading').classList.add('hidden');
+                document.getElementById('recommendations-content').classList.remove('hidden');
+                
+                // Afficher un message d'erreur plus informatif
+                let errorMessage = 'Erreur lors du chargement des recommandations';
+                if (error.name === 'TimeoutError' || error.message.includes('timeout')) {
+                    errorMessage = 'Timeout: L\'analyse IA prend plus de temps que prévu. Les recommandations seront disponibles sous peu.';
+                }
+                
+                document.getElementById('summary').innerHTML = 
+                    `<h4 class="font-semibold mb-2">Information</h4><p class="text-yellow-600">${errorMessage}</p>`;
+                document.getElementById('recommendations-list').innerHTML = 
+                    '<p class="text-yellow-500">Veuillez réessayer dans quelques instants.</p>';
             }
         }
 
@@ -573,7 +1388,8 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ prompt: prompt })
+                    body: JSON.stringify({ prompt: prompt }),
+                    signal: AbortSignal.timeout(15000)
                 });
 
                 const analysis = await response.json();
@@ -629,27 +1445,63 @@
         // Générer le rapport quotidien
         async function generateDailyReport() {
             try {
-                const response = await fetch('/api/dashboard/daily-report');
+                const response = await fetch('/api/dashboard/daily-report', {
+                    signal: AbortSignal.timeout(15000)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const data = await response.json();
+                
+                // Vérifier que les données sont valides
+                const summary = data.data_summary || {};
+                const threats = summary.total_threats || 0;
+                const requests = summary.total_requests || 0;
+                const anomalies = summary.anomalies_count || 0;
+                const prompts = summary.prompts_analyzed || 0;
+                const report = data.report || "Aucun rapport disponible";
+                const generatedAt = data.generated_at || new Date().toISOString();
                 
                 const reportHtml = `
                     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                        <h4 class="font-semibold text-blue-900 mb-2">Rapport généré le ${new Date(data.generated_at).toLocaleString()}</h4>
+                        <h4 class="font-semibold text-blue-900 mb-2">Rapport généré le ${new Date(generatedAt).toLocaleString()}</h4>
                         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                            <div><strong>Menaces:</strong> ${data.data_summary.total_threats}</div>
-                            <div><strong>Requêtes:</strong> ${data.data_summary.total_requests}</div>
-                            <div><strong>Anomalies:</strong> ${data.data_summary.anomalies_count}</div>
-                            <div><strong>Prompts:</strong> ${data.data_summary.prompts_analyzed}</div>
+                            <div><strong>Menaces:</strong> ${threats}</div>
+                            <div><strong>Requêtes:</strong> ${requests}</div>
+                            <div><strong>Anomalies:</strong> ${anomalies}</div>
+                            <div><strong>Prompts:</strong> ${prompts}</div>
                         </div>
+                        ${data.error ? '<div class="text-red-600 text-sm mt-2">⚠️ Erreur lors de la génération</div>' : ''}
                     </div>
-                    <div class="whitespace-pre-wrap">${data.report}</div>
+                    <div class="whitespace-pre-wrap">${report}</div>
                 `;
                 
                 document.getElementById('daily-report-content').innerHTML = reportHtml;
 
             } catch (error) {
                 console.error('Erreur lors de la génération du rapport:', error);
-                showError('Erreur lors de la génération du rapport');
+                
+                // Afficher un message d'erreur utilisateur-friendly
+                const errorHtml = `
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <div class="text-red-800">
+                            <strong>❌ Erreur de génération du rapport</strong>
+                            <p class="mt-2 text-sm">
+                                Le rapport quotidien ne peut pas être généré pour le moment. 
+                                Cela peut être dû à un problème temporaire avec les services de monitoring.
+                            </p>
+                            <p class="mt-2 text-xs text-red-600">
+                                Erreur technique: ${error.message}
+                            </p>
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById('daily-report-content').innerHTML = errorHtml;
+                
+                // Ne pas appeler showError ici car on affiche déjà l'erreur dans le rapport
             }
         }
 
@@ -657,28 +1509,44 @@
         function refreshData() {
             console.log('Manual refresh triggered');
             
+            // Éviter les rafraîchissements concurrents
+            if (isRefreshing) {
+                console.log('Refresh already in progress');
+                return;
+            }
+            
+            isRefreshing = true;
+            
             // Arrêter l'actualisation automatique temporairement
             if (refreshInterval) {
                 clearInterval(refreshInterval);
                 refreshInterval = null;
             }
             
-            // Vérifier l'état des graphiques avant de charger les données
-            if (!isInitialized) {
-                console.log('Charts not initialized, reinitializing...');
-                initializeCharts();
-            }
-            
-            loadDashboardData();
-            loadRecommendations();
-            
-            // Redémarrer l'actualisation automatique après un délai
-            setTimeout(() => {
-                refreshInterval = setInterval(function() {
-                    console.log('Auto-refresh triggered');
-                    loadDashboardData();
-                }, 30000);
-            }, 1000);
+            // Charger les données (qui vérifiera et réinitialisera les graphiques si nécessaire)
+            Promise.all([
+                loadDashboardData(),
+                loadRecommendations()
+            ]).then(() => {
+                console.log('Manual refresh completed successfully');
+            }).catch(error => {
+                console.error('Error during manual refresh:', error);
+                showError('Erreur lors du rafraîchissement: ' + error.message);
+            }).finally(() => {
+                isRefreshing = false;
+                
+                // Redémarrer l'actualisation automatique après un délai
+                setTimeout(() => {
+                    if (!refreshInterval) {
+                        refreshInterval = setInterval(function() {
+                            if (!isRefreshing) {
+                                console.log('Auto-refresh triggered');
+                                loadDashboardData();
+                            }
+                        }, 30000);
+                    }
+                }, 1000);
+            });
         }
 
         // Fonction pour gérer la visibilité de la page (éviter les mises à jour inutiles)

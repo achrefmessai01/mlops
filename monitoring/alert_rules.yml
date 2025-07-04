@@ -3,7 +3,7 @@ groups:
     rules:
       # High Error Rate Alert
       - alert: HighErrorRate
-        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        expr: rate(mlops_requests_total{status=~"5.."}[5m]) > 0.1
         for: 5m
         labels:
           severity: warning
@@ -14,7 +14,7 @@ groups:
 
       # High Response Time Alert
       - alert: HighResponseTime
-        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        expr: histogram_quantile(0.95, rate(mlops_request_duration_seconds_bucket[5m])) > 5
         for: 5m
         labels:
           severity: warning
@@ -23,10 +23,150 @@ groups:
           summary: "High response time detected"
           description: "95th percentile response time is {{ $value }}s"
 
+      # LLM High Latency Alert
+      - alert: LLMHighLatency
+        expr: histogram_quantile(0.95, rate(mlops_inference_latency_seconds_bucket[5m])) > 10
+        for: 3m
+        labels:
+          severity: warning
+          service: mlops-llm
+        annotations:
+          summary: "LLM inference latency is too high"
+          description: "95th percentile LLM latency is {{ $value }}s for model {{ $labels.model }}"
+
       # High Risk User Activity Alert
       - alert: HighRiskUserActivity
         expr: mlops_security_high_risk_users_total > 0
         for: 1m
+        labels:
+          severity: critical
+          service: mlops-security
+        annotations:
+          summary: "High-risk users detected"
+          description: "{{ $value }} high-risk users currently active"
+
+      # Security Anomalies Alert
+      - alert: SecurityAnomaliesDetected
+        expr: increase(mlops_security_threats_total[10m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: mlops-security
+        annotations:
+          summary: "Multiple security threats detected"
+          description: "{{ $value }} security threats detected in the last 10 minutes"
+
+      # Model Error Rate Alert
+      - alert: ModelErrorRate
+        expr: rate(mlops_model_errors_total[5m]) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+          service: mlops-llm
+        annotations:
+          summary: "High model error rate"
+          description: "Model {{ $labels.model }} error rate is {{ $value | humanizePercentage }}"
+
+      # Cost Monitoring Alerts
+      - alert: HighDailyCost
+        expr: increase(mlops_ai_total_cost_usd[24h]) > 50
+        for: 5m
+        labels:
+          severity: warning
+          service: mlops-cost
+        annotations:
+          summary: "High daily AI cost detected"
+          description: "Daily AI costs have exceeded $50: ${{ $value }}"
+
+      - alert: UnusualTokenUsage
+        expr: rate(mlops_tokens_total[1h]) > 10000
+        for: 10m
+        labels:
+          severity: warning
+          service: mlops-cost
+        annotations:
+          summary: "Unusual token usage pattern"
+          description: "Token usage rate is {{ $value }} tokens/second for model {{ $labels.model }}"
+
+      # Service Availability Alerts
+      - alert: MLOpsServiceDown
+        expr: up{job="mlops-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: mlops-app
+        annotations:
+          summary: "MLOps application is down"
+          description: "MLOps application has been down for more than 1 minute"
+
+      - alert: PrometheusDown
+        expr: up{job="prometheus"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: monitoring
+        annotations:
+          summary: "Prometheus is down"
+          description: "Prometheus monitoring is unavailable"
+
+      # Request Volume Alerts
+      - alert: LowRequestVolume
+        expr: rate(mlops_requests_total[10m]) < 0.01
+        for: 15m
+        labels:
+          severity: warning
+          service: mlops-app
+        annotations:
+          summary: "Unusually low request volume"
+          description: "Request rate has been below 0.01/sec for 15 minutes"
+
+      - alert: HighRequestVolume
+        expr: rate(mlops_requests_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: mlops-app
+        annotations:
+          summary: "High request volume detected"
+          description: "Request rate is {{ $value }}/sec, may indicate DDoS or unusual activity"
+
+      # LLM-specific Cost Alerts
+      - alert: ExpensiveModelOveruse
+        expr: rate(mlops_inferences_total{model="gpt4"}[1h]) > rate(mlops_inferences_total{model="gpt35"}[1h]) * 2
+        for: 30m
+        labels:
+          severity: warning
+          service: mlops-cost
+        annotations:
+          summary: "Expensive model (GPT-4) overuse detected"
+          description: "GPT-4 usage is significantly higher than GPT-3.5, consider cost optimization"
+
+      # Database and System Alerts
+      - alert: HighDatabaseConnections
+        expr: mlops_database_connections > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: mlops-database
+        annotations:
+          summary: "High database connection count"
+          description: "Database connections: {{ $value }}, approaching limit"
+
+      # Judge System Alerts
+      - alert: JudgeSystemErrors
+        expr: rate(mlops_judge_analysis_total{status="error"}[10m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: mlops-judge
+        annotations:
+          summary: "Judge system experiencing errors"
+          description: "Judge analysis error rate: {{ $value | humanizePercentage }}"
+
+      # High Risk Users Alert
+      - alert: HighRiskUsers
+        expr: mlops_security_high_risk_users_total > 5
+        for: 2m
         labels:
           severity: critical
           service: security

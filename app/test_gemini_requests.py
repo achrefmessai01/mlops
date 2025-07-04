@@ -42,24 +42,22 @@ PROMPTS = [
 
 def make_gemini_request(prompt):
     body = {
-        "model_name": "gemini",
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt}
-                ]
-            }
-        ]
+        "text": prompt,
+        "model": "gpt-4o-mini",  # Use the model that's configured
+        "max_tokens": 150
     }
     try:
         resp = requests.post(API_URL, json=body, timeout=30)
         resp.raise_for_status()
         data = resp.json()
-        print(f"Prompt: {prompt}\nResponse: {data['result'][:100]}...\n")
+        print(f"Prompt: {prompt[:50]}...")
+        print(f"Response: {data.get('response', data.get('result', 'No response'))[:100]}...")
+        print(f"Status: SUCCESS\n")
         return True
     except Exception as e:
-        print(f"Request failed for prompt: {prompt}\nError: {e}\n")
+        print(f"Request failed for prompt: {prompt[:50]}...")
+        print(f"Error: {e}")
+        print(f"Status: FAILED\n")
         return False
 
 def main():

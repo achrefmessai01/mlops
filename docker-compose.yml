@@ -37,6 +37,7 @@ services:
       - ./data:/app/data
       - ./exports:/app/exports
       - ./judge_analysis:/app/judge_analysis
+      - ./static:/app/static
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -135,6 +136,7 @@ services:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
       - prometheus_monitor_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -145,6 +147,12 @@ services:
       - '--web.enable-lifecycle'
       - '--enable-feature=exemplar-storage'
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     depends_on:
       mlops-app:
         condition: service_healthy
@@ -162,12 +170,17 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioned-dashboards/mlops-dashboard.json
     volumes:
       - grafana_dashboard_data:/var/lib/grafana
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/dashboard-definitions:/etc/grafana/provisioned-dashboards:ro
     restart: unless-stopped
     depends_on:
       prometheus-monitor:
-        condition: service_started
+        condition: service_healthy
     networks:
       - mlops-network
 
