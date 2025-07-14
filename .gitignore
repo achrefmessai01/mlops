@@ -3,6 +3,7 @@
 .env
 .env.local
 .env.*.local
+model_api_keys.env
 # Python
 __pycache__/
 *.py[cod]
